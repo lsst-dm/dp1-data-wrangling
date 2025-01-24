@@ -2,6 +2,5 @@
 dp1-data-wrangling
 ##################
 
-
-
-.. Add a brief (few sentence) description of what this package provides.
+Miscellaneous scripts that will be used to prepare Rubin Data Preview 1 data
+for transfer to the Rubin Science Platform on Google Cloud.
