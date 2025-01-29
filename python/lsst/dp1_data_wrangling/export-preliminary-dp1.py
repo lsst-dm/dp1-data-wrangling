@@ -1,15 +1,47 @@
 import pathlib
 
-from lsst.daf.butler import Butler, DimensionRecordTable, DimensionElement, DimensionRecord, DatasetRef, DatasetType, DimensionGroup
+from lsst.daf.butler import (
+    Butler,
+    DimensionRecordTable,
+    DimensionElement,
+    DimensionRecord,
+    DatasetRef,
+    DatasetType,
+    DimensionGroup,
+)
 import pyarrow
 from pyarrow.parquet import ParquetWriter
 
 
-COLLECTIONS = [ "LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
+COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
+# Based on a preliminary list provided by Jim Bosch at
+# https://rubinobs.atlassian.net/wiki/spaces/~jbosch/pages/423559233/DP1+Dataset+Retention+Removal+Planning
+DATASET_TYPES = [
+    # "Tier 1" major data products
+    "raw",
+    "ccdVisitTable",
+    "visitTable",
+    "pvi",
+    "pvi_background",
+    "sourceTable_visit",
+    "deepCoadd_calexp",
+    "deepCoadd_calexp_background",
+    "goodSeeingCoadd",
+    "objectTable_tract",
+    "forcedSourceTable_tract",
+    "diaObjectTable_tract",
+    "diaSourceTable",
+    # "Tier 1b" minor data products.
+    # The list asks for all *_metadata, *_log, *_config datasets, but those
+    # are not included here yet.
+    "finalVisitSummary",
+]
+
 OUTPUT_DIRECTORY = "dp1-dump-test"
 DIMENSION_SUBDIRECTORY = "dimensions"
 DATASETS_SUBDIRECTORY = "datasets"
 MAX_ROWS_PER_WRITE = 100000
+
 
 def main() -> None:
     output_path = pathlib.Path(OUTPUT_DIRECTORY)
@@ -19,9 +51,11 @@ def main() -> None:
     dumper = DatasetsDumper(output_path)
 
     with butler.registry.caching_context():
-        dumper.dump_refs(butler, "calexp")
+        for dt in DATASET_TYPES:
+            dumper.dump_refs(butler, dt)
 
     dumper.finish()
+
 
 class DatasetsDumper:
     """Export DatasetRefs with associated dimension records to parquet files"""
@@ -41,11 +75,15 @@ class DatasetsDumper:
         self._dataset_types_written: set[str] = set()
 
     def dump_refs(self, butler: Butler, dataset_type_name: str) -> None:
-        assert dataset_type_name not in self._dataset_types_written, "Each dataset type must be written only once"
+        assert (
+            dataset_type_name not in self._dataset_types_written
+        ), "Each dataset type must be written only once"
         self._dataset_types_written.add(dataset_type_name)
 
         dataset_type = butler.get_dataset_type(dataset_type_name)
-        writer = DatasetsParquetWriter(dataset_type, str(self._dataset_output_directory.joinpath(f"{dataset_type_name}.parquet")))
+        writer = DatasetsParquetWriter(
+            dataset_type, str(self._dataset_output_directory.joinpath(f"{dataset_type_name}.parquet"))
+        )
         with butler.query() as query:
             for ref in query.datasets(dataset_type, COLLECTIONS, find_first=False).with_dimension_records():
                 writer.add_ref(ref)
@@ -63,9 +101,13 @@ class DatasetsDumper:
 
         writer = self._dimensions.get(dimension)
         if writer is None:
-            writer = DimensionRecordParquetWriter(record.definition, str(self._dimension_output_directory.joinpath(f"{dimension}.parquet")))
+            writer = DimensionRecordParquetWriter(
+                record.definition,
+                str(self._dimension_output_directory.joinpath(f"{dimension}.parquet")),
+            )
             self._dimensions[dimension] = writer
         writer.add_record(record)
+
 
 class DimensionRecordParquetWriter:
     def __init__(self, dimension: DimensionElement, output_file: str) -> None:
@@ -87,6 +129,7 @@ class DimensionRecordParquetWriter:
     def finish(self) -> None:
         self._flush_records()
         self._writer.close()
+
 
 class DatasetsParquetWriter:
     def __init__(self, dataset_type: DatasetType, output_file: str) -> None:
@@ -119,8 +162,8 @@ def create_dataset_arrow_schema(dataset_type: DatasetType) -> pyarrow.Schema:
         pyarrow.field("run", pyarrow.string()),
         *_get_data_id_column_schemas(dataset_type.dimensions),
     ]
-    print(fields)
     return pyarrow.schema(fields)
+
 
 def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Field]:
     schema = []
@@ -130,6 +173,7 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         schema.append(field)
 
     return schema
+
 
 if __name__ == "__main__":
     main()
