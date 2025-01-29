@@ -1,4 +1,7 @@
-import pathlib
+from __future__ import annotations
+
+import pyarrow
+from pyarrow.parquet import ParquetWriter
 
 from lsst.daf.butler import (
     Butler,
@@ -9,8 +12,7 @@ from lsst.daf.butler import (
     DatasetType,
     DimensionGroup,
 )
-import pyarrow
-from pyarrow.parquet import ParquetWriter
+from .paths import ExportPaths
 
 
 COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
@@ -38,17 +40,12 @@ DATASET_TYPES = [
 ]
 
 OUTPUT_DIRECTORY = "dp1-dump-test"
-DIMENSION_SUBDIRECTORY = "dimensions"
-DATASETS_SUBDIRECTORY = "datasets"
 MAX_ROWS_PER_WRITE = 100000
 
 
 def main() -> None:
-    output_path = pathlib.Path(OUTPUT_DIRECTORY)
-    output_path.mkdir(parents=True, exist_ok=True)
-
     butler = Butler("/repo/main")
-    dumper = DatasetsDumper(output_path)
+    dumper = DatasetsDumper(OUTPUT_DIRECTORY)
 
     with butler.registry.caching_context():
         for dt in DATASET_TYPES:
@@ -60,17 +57,10 @@ def main() -> None:
 class DatasetsDumper:
     """Export DatasetRefs with associated dimension records to parquet files"""
 
-    def __init__(self, output_path: pathlib.Path) -> None:
+    def __init__(self, output_path: str) -> None:
         self._dimensions: dict[str, DimensionRecordParquetWriter] = {}
-        self._output_path = output_path
-
-        dimension_output_directory = output_path.joinpath(DIMENSION_SUBDIRECTORY)
-        dimension_output_directory.mkdir(exist_ok=True)
-        self._dimension_output_directory = dimension_output_directory
-
-        dataset_output_directory = output_path.joinpath(DATASETS_SUBDIRECTORY)
-        dataset_output_directory.mkdir(exist_ok=True)
-        self._dataset_output_directory = dataset_output_directory
+        self._paths = ExportPaths(output_path)
+        self._paths.create_directories()
 
         self._dataset_types_written: set[str] = set()
 
@@ -81,9 +71,7 @@ class DatasetsDumper:
         self._dataset_types_written.add(dataset_type_name)
 
         dataset_type = butler.get_dataset_type(dataset_type_name)
-        writer = DatasetsParquetWriter(
-            dataset_type, str(self._dataset_output_directory.joinpath(f"{dataset_type_name}.parquet"))
-        )
+        writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type_name))
         with butler.query() as query:
             for ref in query.datasets(dataset_type, COLLECTIONS, find_first=False).with_dimension_records():
                 writer.add_ref(ref)
@@ -102,8 +90,7 @@ class DatasetsDumper:
         writer = self._dimensions.get(dimension)
         if writer is None:
             writer = DimensionRecordParquetWriter(
-                record.definition,
-                str(self._dimension_output_directory.joinpath(f"{dimension}.parquet")),
+                record.definition, self._paths.dimension_parquet_path(dimension)
             )
             self._dimensions[dimension] = writer
         writer.add_record(record)
@@ -173,7 +160,3 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         schema.append(field)
 
     return schema
-
-
-if __name__ == "__main__":
-    main()
