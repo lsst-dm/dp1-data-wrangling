@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
+import itertools
 import pandas
 import pyarrow
 import pyarrow.types
@@ -42,7 +44,7 @@ DATASET_TYPES = [
 ]
 
 OUTPUT_DIRECTORY = "dp1-dump-test"
-MAX_ROWS_PER_WRITE = 100000
+MAX_ROWS_PER_WRITE = 50000
 
 
 def main() -> None:
@@ -75,10 +77,12 @@ class DatasetsDumper:
         dataset_type = butler.get_dataset_type(dataset_type_name)
         writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type_name))
         with butler.query() as query:
-            for ref in query.datasets(dataset_type, COLLECTIONS, find_first=False).with_dimension_records():
-                writer.add_ref(ref)
-                for key, record in ref.dataId.records.items():
-                    self._add_dimension_record(key, record)
+            results = query.datasets(dataset_type, COLLECTIONS, find_first=False).with_dimension_records()
+            for refs in _batched(results, MAX_ROWS_PER_WRITE):
+                writer.add_refs(refs)
+                for ref in refs:
+                    for key, record in ref.dataId.records.items():
+                        self._add_dimension_record(key, record)
             writer.finish()
 
     def finish(self) -> None:
@@ -95,6 +99,7 @@ class DatasetsDumper:
                 record.definition, self._paths.dimension_parquet_path(dimension)
             )
             self._dimensions[dimension] = writer
+
         writer.add_record(record)
 
 
@@ -137,24 +142,19 @@ class DatasetsParquetWriter:
     def __init__(self, dataset_type: DatasetType, output_file: str) -> None:
         self._schema = create_dataset_arrow_schema(dataset_type)
         self._writer = ParquetWriter(output_file, self._schema)
-        self._rows: list[dict] = []
 
-    def add_ref(self, ref: DatasetRef) -> None:
+    def add_refs(self, refs: Iterable[DatasetRef]) -> None:
+        rows = [self._to_row(ref) for ref in refs]
+        batch = pyarrow.RecordBatch.from_pylist(rows, schema=self._schema)
+        self._writer.write(batch)
+
+    def _to_row(self, ref: DatasetRef) -> dict[str, object]:
         row = dict(ref.dataId.required)
         row["dataset_id"] = ref.id.bytes
         row["run"] = ref.run
-
-        self._rows.append(row)
-        if len(self._rows) >= MAX_ROWS_PER_WRITE:
-            self._flush_rows()
-
-    def _flush_rows(self) -> None:
-        batch = pyarrow.RecordBatch.from_pylist(self._rows, schema=self._schema)
-        self._writer.write(batch)
-        self._rows.clear()
+        return row
 
     def finish(self) -> None:
-        self._flush_rows()
         self._writer.close()
 
 
@@ -179,3 +179,10 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         schema.append(field)
 
     return schema
+
+
+def _batched(refs: Iterable[DatasetRef], batch_size: int) -> Iterator[list[DatasetRef]]:
+    """Roughly equivalent to Python 3.12's itertools.batched."""
+    iterator = iter(refs)
+    while batch := list(itertools.islice(iterator, batch_size)):
+        yield batch
