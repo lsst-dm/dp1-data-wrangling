@@ -6,21 +6,7 @@ from collections.abc import Iterable, Iterator
 from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
 
 from .datasets_parquet_writer import DatasetsParquetWriter
-import itertools
-import pandas
-import pyarrow
-import pyarrow.types
-from pyarrow.parquet import ParquetWriter
-
-from lsst.daf.butler import (
-    Butler,
-    DimensionRecordTable,
-    DimensionElement,
-    DimensionRecord,
-    DatasetRef,
-    DatasetType,
-    DimensionGroup,
-)
+from .datastore_parquet_writer import DatastoreParquetWriter
 from .dimension_record_parquet_writer import DimensionRecordParquetWriter
 from .paths import ExportPaths
 
@@ -72,6 +58,7 @@ class DatasetsDumper:
         self._paths.create_directories()
 
         self._dataset_types_written: set[str] = set()
+        self._datastore_writer = DatastoreParquetWriter(self._paths.datastore_parquet_path())
 
     def dump_refs(self, butler: Butler, dataset_type_name: str) -> None:
         assert (
@@ -88,11 +75,14 @@ class DatasetsDumper:
                 for ref in refs:
                     for key, record in ref.dataId.records.items():
                         self._add_dimension_record(key, record)
+                datastore_records = butler._datastore.export_records(refs)
+                self._datastore_writer.write_records(datastore_records, butler._datastore.names)
             writer.finish()
 
     def finish(self) -> None:
         for writer in self._dimensions.values():
             writer.finish()
+        self._datastore_writer.finish()
 
     def _add_dimension_record(self, dimension: str, record: DimensionRecord | None) -> None:
         if record is None:

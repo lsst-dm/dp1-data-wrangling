@@ -28,3 +28,6 @@ class ExportPaths:
 
     def dataset_parquet_path(self, dataset_type_name: str) -> str:
         return self._join(_DATASETS_SUBDIRECTORY, dataset_type_name)
+
+    def datastore_parquet_path(self) -> str:
+        return self._join("datastore")
