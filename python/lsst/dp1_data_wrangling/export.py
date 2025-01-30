@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import itertools
 from collections.abc import Iterable, Iterator
+
+from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
+
+from .datasets_parquet_writer import DatasetsParquetWriter
 import itertools
 import pandas
 import pyarrow
@@ -16,8 +21,8 @@ from lsst.daf.butler import (
     DatasetType,
     DimensionGroup,
 )
+from .dimension_record_parquet_writer import DimensionRecordParquetWriter
 from .paths import ExportPaths
-
 
 COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
 # Based on a preliminary list provided by Jim Bosch at
@@ -101,84 +106,6 @@ class DatasetsDumper:
             self._dimensions[dimension] = writer
 
         writer.add_record(record)
-
-
-class DimensionRecordParquetWriter:
-    def __init__(self, dimension: DimensionElement, output_file: str) -> None:
-        self._dimension = dimension
-        self._output_file = output_file
-        self._records: list[DimensionRecord] = []
-        self._schema = DimensionRecordTable.make_arrow_schema(dimension)
-        self._writer = ParquetWriter(output_file, self._schema)
-
-    def add_record(self, record: DimensionRecord) -> None:
-        self._records.append(record)
-        if len(self._records) >= MAX_ROWS_PER_WRITE:
-            self._flush_records()
-
-    def _flush_records(self) -> None:
-        table = DimensionRecordTable(self._dimension, self._records)
-        self._writer.write(table.to_arrow())
-        self._records.clear()
-
-    def finish(self) -> None:
-        self._flush_records()
-        self._writer.close()
-        data_id_columns = list(self._dimension.schema.required.names)
-
-        df = pandas.read_parquet(self._output_file)
-        # De-duplicate the dimension records.  Because the records were
-        # inserted from DatasetRefs of multiple dataset types, there is likely
-        # to be significant duplication.
-        df.drop_duplicates(subset=data_id_columns, inplace=True)
-        # The data ID columns are used in indexes and are typically ordered
-        # from low to high cardinality, so sorting here should give better
-        # compression and insert performance.
-        df.sort_values(by=data_id_columns, inplace=True)
-        df.to_parquet(self._output_file, schema=self._schema, index=False)
-
-
-class DatasetsParquetWriter:
-    def __init__(self, dataset_type: DatasetType, output_file: str) -> None:
-        self._schema = create_dataset_arrow_schema(dataset_type)
-        self._writer = ParquetWriter(output_file, self._schema)
-
-    def add_refs(self, refs: Iterable[DatasetRef]) -> None:
-        rows = [self._to_row(ref) for ref in refs]
-        batch = pyarrow.RecordBatch.from_pylist(rows, schema=self._schema)
-        self._writer.write(batch)
-
-    def _to_row(self, ref: DatasetRef) -> dict[str, object]:
-        row = dict(ref.dataId.required)
-        row["dataset_id"] = ref.id.bytes
-        row["run"] = ref.run
-        return row
-
-    def finish(self) -> None:
-        self._writer.close()
-
-
-def create_dataset_arrow_schema(dataset_type: DatasetType) -> pyarrow.Schema:
-    fields = [
-        pyarrow.field("dataset_id", pyarrow.binary(16)),
-        pyarrow.field("run", pyarrow.dictionary(pyarrow.int32(), pyarrow.string())),
-        *_get_data_id_column_schemas(dataset_type.dimensions),
-    ]
-    return pyarrow.schema(fields)
-
-
-def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Field]:
-    schema = []
-    for dimension in dimensions.required:
-        dimension = dimensions.universe.dimensions[dimension]
-        data_type = dimension.primary_key.to_arrow().data_type
-        if pyarrow.types.is_string(data_type):
-            # Data ID string values always have low cardinality, so dictionary encoding helps a lot.
-            data_type = pyarrow.dictionary(pyarrow.int32(), data_type)
-        field = pyarrow.field(dimension.name, data_type)
-        schema.append(field)
-
-    return schema
 
 
 def _batched(refs: Iterable[DatasetRef], batch_size: int) -> Iterator[list[DatasetRef]]:
