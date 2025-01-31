@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pandas
+import pyarrow
 from lsst.daf.butler import DimensionElement, DimensionRecord, DimensionRecordTable
-from pyarrow.parquet import ParquetWriter
+from pyarrow.parquet import ParquetFile, ParquetWriter
 
 _MAX_ROWS_PER_WRITE = 50000
 
@@ -40,3 +43,14 @@ class DimensionRecordParquetWriter:
         # compression and insert performance.
         df.sort_values(by=data_id_columns, inplace=True)
         df.to_parquet(self._output_file, schema=self._schema, index=False)
+
+
+def read_dimension_records_from_file(
+    dimension: DimensionElement, input_file: str
+) -> Iterator[DimensionRecordTable]:
+    batch_size = 10000
+    reader = ParquetFile(input_file)
+    schema = DimensionRecordTable.make_arrow_schema(dimension)
+    for batch in reader.iter_batches(batch_size=batch_size):
+        table = pyarrow.Table.from_batches([batch], schema=schema)
+        yield DimensionRecordTable(dimension, table=table)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from lsst.daf.butler import Butler
 
 from .dataset_types import import_dataset_types
+from .dimension_record_parquet import read_dimension_records_from_file
 from .index import ExportIndex
 from .paths import ExportPaths
 from .utils import read_model_from_file
@@ -34,3 +35,18 @@ class Importer:
 
         with self._butler.transaction():
             self._butler.import_(filename=self._paths.collections_path())
+            self._import_dimension_records(index.dimensions)
+
+    def _import_dimension_records(self, dimensions: list[str]) -> None:
+        universe = self._butler.dimensions
+        dimensions = universe.sorted(dimensions)
+        for dimension_name in dimensions:
+            element = universe[dimension_name]
+            # If a dimension doesn't "have its own table", then it's a virtual dimension
+            # defined by another dimension, and we can't insert rows for it.  In the
+            # default LSST universe, "band" doesn't have its own table because it is
+            # derived from "physical_filter".
+            if element.has_own_table:
+                path = self._paths.dimension_parquet_path(element.name)
+                for table in read_dimension_records_from_file(element, path):
+                    self._butler.registry.insertDimensionData(element, *list(table), skip_existing=True)
