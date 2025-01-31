@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import json
 from collections.abc import Iterable, Iterator
 
 from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
