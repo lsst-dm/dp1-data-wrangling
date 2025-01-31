@@ -34,3 +34,6 @@ class ExportPaths:
 
     def collections_yaml_path(self) -> str:
         return self._join("collections.yaml")
+
+    def dataset_type_path(self) -> str:
+        return self._join("dataset_types.json")

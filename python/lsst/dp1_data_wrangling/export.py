@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import itertools
+import json
 from collections.abc import Iterable, Iterator
 
 from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
 
+from .dataset_types import export_dataset_types
 from .datasets_parquet_writer import DatasetsParquetWriter
 from .datastore_parquet_writer import DatastoreParquetWriter
 from .dimension_record_parquet_writer import DimensionRecordParquetWriter
@@ -45,8 +47,7 @@ def main() -> None:
         dumper = DatasetsDumper(OUTPUT_DIRECTORY, butler)
         for dt in DATASET_TYPES:
             dumper.dump_refs(dt, COLLECTIONS)
-
-    dumper.finish()
+        dumper.finish()
 
 
 class DatasetsDumper:
@@ -89,6 +90,12 @@ class DatasetsDumper:
             writer.finish()
         self._datastore_writer.finish()
 
+        self._export_collections()
+
+        dataset_types = self._butler.registry.queryDatasetTypes(self._dataset_types_written)
+        export_dataset_types(self._paths.dataset_type_path(), dataset_types)
+
+    def _export_collections(self) -> None:
         with self._butler.export(filename=self._paths.collections_yaml_path()) as exporter:
             # Export collection structure
             collections = self._butler.collections.query(
