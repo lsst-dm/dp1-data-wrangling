@@ -16,7 +16,7 @@ class ExportPaths:
 
     def _join(self, *path_fragments: str) -> str:
         # Make sure a poisoned filename can't escape the export directory.
-        allowed_fragment_name_regex = r"^\w+$"
+        allowed_fragment_name_regex = r"^\w+\.?\w*$"
         for fragment in path_fragments:
             if not re.fullmatch(allowed_fragment_name_regex, fragment):
                 raise RuntimeError(f"Path segment is in unexpected format: {fragment}")
@@ -31,3 +31,6 @@ class ExportPaths:
 
     def datastore_parquet_path(self) -> str:
         return self._join("datastore")
+
+    def collections_yaml_path(self) -> str:
+        return self._join("collections.yaml")

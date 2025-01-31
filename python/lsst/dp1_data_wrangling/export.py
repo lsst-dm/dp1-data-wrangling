@@ -40,11 +40,11 @@ MAX_ROWS_PER_WRITE = 50000
 
 def main() -> None:
     butler = Butler("/repo/main")
-    dumper = DatasetsDumper(OUTPUT_DIRECTORY)
 
     with butler.registry.caching_context():
+        dumper = DatasetsDumper(OUTPUT_DIRECTORY, butler)
         for dt in DATASET_TYPES:
-            dumper.dump_refs(butler, dt)
+            dumper.dump_refs(dt, COLLECTIONS)
 
     dumper.finish()
 
@@ -52,37 +52,50 @@ def main() -> None:
 class DatasetsDumper:
     """Export DatasetRefs with associated dimension records to parquet files"""
 
-    def __init__(self, output_path: str) -> None:
+    def __init__(self, output_path: str, butler: Butler) -> None:
         self._dimensions: dict[str, DimensionRecordParquetWriter] = {}
+        self._butler = butler
         self._paths = ExportPaths(output_path)
         self._paths.create_directories()
 
         self._dataset_types_written: set[str] = set()
+        self._collections_seen: set[str] = set()
         self._datastore_writer = DatastoreParquetWriter(self._paths.datastore_parquet_path())
 
-    def dump_refs(self, butler: Butler, dataset_type_name: str) -> None:
+    def dump_refs(self, dataset_type_name: str, collections: list[str]) -> None:
         assert (
             dataset_type_name not in self._dataset_types_written
         ), "Each dataset type must be written only once"
         self._dataset_types_written.add(dataset_type_name)
 
-        dataset_type = butler.get_dataset_type(dataset_type_name)
+        self._collections_seen.update(collections)
+
+        dataset_type = self._butler.get_dataset_type(dataset_type_name)
         writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type_name))
-        with butler.query() as query:
-            results = query.datasets(dataset_type, COLLECTIONS, find_first=False).with_dimension_records()
+        with self._butler.query() as query:
+            results = query.datasets(dataset_type, collections, find_first=False).with_dimension_records()
             for refs in _batched(results, MAX_ROWS_PER_WRITE):
                 writer.add_refs(refs)
                 for ref in refs:
+                    self._collections_seen.add(ref.run)
                     for key, record in ref.dataId.records.items():
                         self._add_dimension_record(key, record)
-                datastore_records = butler._datastore.export_records(refs)
-                self._datastore_writer.write_records(datastore_records, butler._datastore.names)
+                datastore_records = self._butler._datastore.export_records(refs)
+                self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
             writer.finish()
 
     def finish(self) -> None:
         for writer in self._dimensions.values():
             writer.finish()
         self._datastore_writer.finish()
+
+        with self._butler.export(filename=self._paths.collections_yaml_path()) as exporter:
+            # Export collection structure
+            collections = self._butler.collections.query(
+                self._collections_seen, flatten_chains=True, include_chains=True
+            )
+            for collection in collections:
+                exporter.saveCollection(collection)
 
     def _add_dimension_record(self, dimension: str, record: DimensionRecord | None) -> None:
         if record is None:
