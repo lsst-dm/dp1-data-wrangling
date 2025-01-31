@@ -3,7 +3,9 @@ from __future__ import annotations
 from lsst.daf.butler import Butler
 
 from .dataset_types import import_dataset_types
+from .index import ExportIndex
 from .paths import ExportPaths
+from .utils import read_model_from_file
 
 INPUT_DIRECTORY = "dp1-dump-test"
 OUTPUT_REPO = "import-test-repo"
@@ -22,6 +24,8 @@ class Importer:
         self._butler = butler
 
     def import_all(self) -> None:
+        index = read_model_from_file(ExportIndex, self._paths.index_path())
+
         # Dataset types have to be registered outside the transaction,
         # because registering them creates tables.
         dataset_types = import_dataset_types(self._paths.dataset_type_path(), self._butler.dimensions)
@@ -29,4 +33,4 @@ class Importer:
             self._butler.registry.registerDatasetType(dt)
 
         with self._butler.transaction():
-            self._butler.import_(filename=self._paths.collections_yaml_path())
+            self._butler.import_(filename=self._paths.collections_path())

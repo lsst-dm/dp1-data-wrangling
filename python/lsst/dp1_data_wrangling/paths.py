@@ -32,8 +32,11 @@ class ExportPaths:
     def datastore_parquet_path(self) -> str:
         return self._join("datastore")
 
-    def collections_yaml_path(self) -> str:
+    def collections_path(self) -> str:
         return self._join("collections.yaml")
 
     def dataset_type_path(self) -> str:
         return self._join("dataset_types.json")
+
+    def index_path(self) -> str:
+        return self._join("index.json")

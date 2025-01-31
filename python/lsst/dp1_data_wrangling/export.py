@@ -9,7 +9,9 @@ from .dataset_types import export_dataset_types
 from .datasets_parquet_writer import DatasetsParquetWriter
 from .datastore_parquet_writer import DatastoreParquetWriter
 from .dimension_record_parquet_writer import DimensionRecordParquetWriter
+from .index import ExportIndex
 from .paths import ExportPaths
+from .utils import write_model_to_file
 
 COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
 # Based on a preliminary list provided by Jim Bosch at
@@ -94,8 +96,13 @@ class DatasetsDumper:
         dataset_types = self._butler.registry.queryDatasetTypes(self._dataset_types_written)
         export_dataset_types(self._paths.dataset_type_path(), dataset_types)
 
+        index = ExportIndex(
+            dimensions=list(self._dimensions.keys()), dataset_types=list(self._dataset_types_written)
+        )
+        write_model_to_file(index, self._paths.index_path())
+
     def _export_collections(self) -> None:
-        with self._butler.export(filename=self._paths.collections_yaml_path()) as exporter:
+        with self._butler.export(filename=self._paths.collections_path()) as exporter:
             # Export collection structure
             collections = self._butler.collections.query(
                 self._collections_seen, flatten_chains=True, include_chains=True
