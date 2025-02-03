@@ -4,7 +4,12 @@ from collections.abc import Iterator
 
 import pandas
 import pyarrow
-from lsst.daf.butler import DimensionElement, DimensionRecord, DimensionRecordTable
+from lsst.daf.butler import (
+    DimensionElement,
+    DimensionRecord,
+    DimensionRecordSet,
+    DimensionRecordTable,
+)
 from pyarrow.parquet import ParquetFile, ParquetWriter
 
 _MAX_ROWS_PER_WRITE = 50000
@@ -14,19 +19,19 @@ class DimensionRecordParquetWriter:
     def __init__(self, dimension: DimensionElement, output_file: str) -> None:
         self._dimension = dimension
         self._output_file = output_file
-        self._records: list[DimensionRecord] = []
+        self._records: DimensionRecordSet = DimensionRecordSet(dimension)
         self._schema = DimensionRecordTable.make_arrow_schema(dimension)
         self._writer = ParquetWriter(output_file, self._schema)
 
     def add_record(self, record: DimensionRecord) -> None:
-        self._records.append(record)
+        self._records.add(record)
         if len(self._records) >= _MAX_ROWS_PER_WRITE:
             self._flush_records()
 
     def _flush_records(self) -> None:
         table = DimensionRecordTable(self._dimension, self._records)
         self._writer.write(table.to_arrow())
-        self._records.clear()
+        self._records = DimensionRecordSet(self._dimension)
 
     def finish(self) -> None:
         self._flush_records()
