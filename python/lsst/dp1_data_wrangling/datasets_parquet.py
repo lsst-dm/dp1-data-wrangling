@@ -4,14 +4,10 @@ from collections.abc import Iterable, Iterator
 
 import pyarrow
 import pyarrow.types
-from lsst.daf.butler import (
-    DataCoordinate,
-    DatasetId,
-    DatasetRef,
-    DatasetType,
-    DimensionGroup,
-)
+from lsst.daf.butler import DatasetRef, DatasetType, DimensionGroup
 from pyarrow.parquet import ParquetFile, ParquetWriter
+
+from .utils import convert_parquet_uuid_to_dataset_id
 
 
 class DatasetsParquetWriter:
@@ -66,7 +62,4 @@ def read_dataset_refs_from_file(dataset_type: DatasetType, input_file: str) -> I
 
 
 def _to_ref(dataset_type: DatasetType, row: dict[str, object]) -> DatasetRef:
-    dataset_id_binary = row["dataset_id"]
-    assert isinstance(dataset_id_binary, bytes), "Dataset ID expected to be serialized as binary bytes."
-    dataset_id = DatasetId(bytes=dataset_id_binary)
-    return DatasetRef(dataset_type, row, row["run"], id=dataset_id)
+    return DatasetRef(dataset_type, row, row["run"], id=convert_parquet_uuid_to_dataset_id(row["dataset_id"]))

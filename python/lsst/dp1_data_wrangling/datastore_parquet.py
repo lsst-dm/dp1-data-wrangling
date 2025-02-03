@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator, Mapping
+from typing import Any, NamedTuple
 
 import pyarrow
 from lsst.daf.butler import DatasetId
@@ -9,7 +10,18 @@ from lsst.daf.butler.datastore.record_data import (
     DatastoreRecordData,
     StoredDatastoreItemInfo,
 )
-from pyarrow.parquet import ParquetWriter
+from lsst.daf.butler.datastores.fileDatastore import StoredFileInfo
+from pyarrow.parquet import ParquetFile, ParquetWriter
+
+from .utils import convert_parquet_uuid_to_dataset_id
+
+# The full structure of the export structure used by
+# Datastore.export_records/Datastore.import_records is:
+# dict:
+#   datastore name -> DatastoreRecordData (class):
+#     .records (dict):
+#       DatasetId -> dict:
+#         table name (str) -> list[StoredDatastoreItemInfo]:
 
 
 class DatastoreParquetWriter:
@@ -75,5 +87,28 @@ def _convert_record(
     item_infos = list(record.values())[0]
 
     for item in item_infos:
+        assert isinstance(item, StoredFileInfo), "Exporting records is only supported for FileDatastore"
         row = {"datastore_name": datastore_name, "dataset_id": dataset_id.bytes, **item.to_record()}
         yield row
+
+
+class DatastoreRow(NamedTuple):
+    datastore_name: str
+    dataset_id: DatasetId
+    file_info: StoredDatastoreItemInfo
+
+
+def read_datastore_records_from_file(input_file: str) -> Iterator[list[DatastoreRow]]:
+    batch_size = 10000
+    reader = ParquetFile(input_file)
+    for batch in reader.iter_batches(batch_size=batch_size):
+        rows = batch.to_pylist()
+        yield [_to_datastore_row_tuple(row) for row in rows]
+
+
+def _to_datastore_row_tuple(row: dict[str, Any]) -> DatastoreRow:
+    return DatastoreRow(
+        dataset_id=convert_parquet_uuid_to_dataset_id(row["dataset_id"]),
+        datastore_name=row["datastore_name"],
+        file_info=StoredFileInfo.from_record(row),
+    )

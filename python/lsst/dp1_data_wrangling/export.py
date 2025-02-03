@@ -7,7 +7,7 @@ from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
 
 from .dataset_types import export_dataset_types
 from .datasets_parquet import DatasetsParquetWriter
-from .datastore_parquet_writer import DatastoreParquetWriter
+from .datastore_parquet import DatastoreParquetWriter
 from .dimension_record_parquet import DimensionRecordParquetWriter
 from .index import ExportIndex
 from .paths import ExportPaths

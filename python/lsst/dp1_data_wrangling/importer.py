@@ -6,6 +6,8 @@ from lsst.daf.butler import Butler, DatasetRef, DatasetType
 
 from .dataset_types import import_dataset_types
 from .datasets_parquet import read_dataset_refs_from_file
+from .datastore_mapping import DatastoreMapper, DatastoreMappingConfig
+from .datastore_parquet import read_datastore_records_from_file
 from .dimension_record_parquet import read_dimension_records_from_file
 from .index import ExportIndex
 from .paths import ExportPaths
@@ -19,7 +21,7 @@ def main() -> None:
     Butler.makeRepo(OUTPUT_REPO)
     butler = Butler(OUTPUT_REPO, writeable=True)
     importer = Importer(INPUT_DIRECTORY, butler)
-    importer.import_all()
+    importer.import_all(datastore_mapping={"FileDatastore@<butlerRoot>": "FileDatastore@<butlerRoot>"})
 
 
 class Importer:
@@ -27,7 +29,7 @@ class Importer:
         self._paths = ExportPaths(input_path)
         self._butler = butler
 
-    def import_all(self) -> None:
+    def import_all(self, datastore_mapping: DatastoreMappingConfig) -> None:
         index = read_model_from_file(ExportIndex, self._paths.index_path())
 
         # Dataset types have to be registered outside the transaction,
@@ -40,6 +42,7 @@ class Importer:
             self._butler.import_(filename=self._paths.collections_path())
             self._import_dimension_records(index.dimensions)
             self._import_datasets(dataset_types)
+            self._import_datastore(datastore_mapping)
 
     def _import_dimension_records(self, dimensions: list[str]) -> None:
         universe = self._butler.dimensions
@@ -71,6 +74,12 @@ class Importer:
                         # use live ObsCore for data releases.
                         expand=False,
                     )
+
+    def _import_datastore(self, config: DatastoreMappingConfig) -> None:
+        mapper = DatastoreMapper(config, self._butler._datastore)
+        for batch in read_datastore_records_from_file(self._paths.datastore_parquet_path()):
+            records = mapper.map_to_target(batch)
+            self._butler._datastore.import_records(records)
 
 
 def _get_run(ref: DatasetRef) -> str:
