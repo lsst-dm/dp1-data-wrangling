@@ -6,9 +6,9 @@ from collections.abc import Iterable, Iterator
 from lsst.daf.butler import Butler, DatasetRef, DimensionRecord
 
 from .dataset_types import export_dataset_types
-from .datasets_parquet_writer import DatasetsParquetWriter
+from .datasets_parquet import DatasetsParquetWriter
 from .datastore_parquet_writer import DatastoreParquetWriter
-from .dimension_record_parquet_writer import DimensionRecordParquetWriter
+from .dimension_record_parquet import DimensionRecordParquetWriter
 from .index import ExportIndex
 from .paths import ExportPaths
 from .utils import write_model_to_file

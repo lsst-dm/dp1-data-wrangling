@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 import pyarrow
 import pyarrow.types
-from lsst.daf.butler import DatasetRef, DatasetType, DimensionGroup
-from pyarrow.parquet import ParquetWriter
+from lsst.daf.butler import (
+    DataCoordinate,
+    DatasetId,
+    DatasetRef,
+    DatasetType,
+    DimensionGroup,
+)
+from pyarrow.parquet import ParquetFile, ParquetWriter
 
 
 class DatasetsParquetWriter:
@@ -49,3 +55,18 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         schema.append(field)
 
     return schema
+
+
+def read_dataset_refs_from_file(dataset_type: DatasetType, input_file: str) -> Iterator[list[DatasetRef]]:
+    batch_size = 10000
+    reader = ParquetFile(input_file)
+    for batch in reader.iter_batches(batch_size=batch_size):
+        rows = batch.to_pylist()
+        yield [_to_ref(dataset_type, row) for row in rows]
+
+
+def _to_ref(dataset_type: DatasetType, row: dict[str, object]) -> DatasetRef:
+    dataset_id_binary = row["dataset_id"]
+    assert isinstance(dataset_id_binary, bytes), "Dataset ID expected to be serialized as binary bytes."
+    dataset_id = DatasetId(bytes=dataset_id_binary)
+    return DatasetRef(dataset_type, row, row["run"], id=dataset_id)

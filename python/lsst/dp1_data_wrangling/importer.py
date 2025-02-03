@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from lsst.daf.butler import Butler
+from itertools import groupby
+
+from lsst.daf.butler import Butler, DatasetRef, DatasetType
 
 from .dataset_types import import_dataset_types
+from .datasets_parquet import read_dataset_refs_from_file
 from .dimension_record_parquet import read_dimension_records_from_file
 from .index import ExportIndex
 from .paths import ExportPaths
@@ -36,6 +39,7 @@ class Importer:
         with self._butler.transaction():
             self._butler.import_(filename=self._paths.collections_path())
             self._import_dimension_records(index.dimensions)
+            self._import_datasets(dataset_types)
 
     def _import_dimension_records(self, dimensions: list[str]) -> None:
         universe = self._butler.dimensions
@@ -50,3 +54,24 @@ class Importer:
                 path = self._paths.dimension_parquet_path(element.name)
                 for table in read_dimension_records_from_file(element, path):
                     self._butler.registry.insertDimensionData(element, *list(table), skip_existing=True)
+
+    def _import_datasets(self, dataset_types: list[DatasetType]) -> None:
+        for dt in dataset_types:
+            path = self._paths.dataset_parquet_path(dt.name)
+            for batch in read_dataset_refs_from_file(dt, path):
+                # _importDatasets can only import refs from one run at a time, so
+                # chunk by run.
+                for run, refs in groupby(sorted(batch, key=_get_run), _get_run):
+                    self._butler.registry._importDatasets(
+                        refs,
+                        # Setting expand=False will break things if "live
+                        # ObsCore" is enabled, but expand=True is unacceptably
+                        # slow because it generates a query for every single
+                        # ref we are inserting.  We currently do not plan to
+                        # use live ObsCore for data releases.
+                        expand=False,
+                    )
+
+
+def _get_run(ref: DatasetRef) -> str:
+    return ref.run
