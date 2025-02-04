@@ -92,6 +92,8 @@ class DatasetsDumper:
         with self._butler.query() as query:
             results = query.datasets(dataset_type, collections, find_first=False).with_dimension_records()
             for refs in _batched(results, MAX_ROWS_PER_WRITE):
+                # Sort by data ID to improve compressibility.
+                refs.sort(key=lambda ref: ref.dataId)
                 writer.add_refs(refs)
                 for ref in refs:
                     self._collections_seen.add(ref.run)
@@ -125,6 +127,9 @@ class DatasetsDumper:
                 )
                 associations = DatasetAssociation.from_query_result(result, dataset_type)
                 for batch in _batched(associations, MAX_ROWS_PER_WRITE):
+                    # Sort to group datasets from the same collection together,
+                    # then by data ID to improve compressibility.
+                    batch.sort(key=lambda association: (association.collection, association.ref.dataId))
                     writer.add_associations(batch)
         writer.finish()
 
