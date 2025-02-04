@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import Callable, NamedTuple, TypeAlias
 
 from lsst.daf.butler import DatasetId, Datastore
 from lsst.daf.butler.datastore.record_data import DatastoreRecordData
@@ -9,9 +9,15 @@ from lsst.daf.butler.datastores.fileDatastore import FileDatastore, StoredFileIn
 
 from .datastore_parquet import DatastoreRow
 
-DatastoreMappingConfig: TypeAlias = dict[str, str]
-"""Keys are datastore names from the source repository, values are
-datastore names on the target repository.
+
+class DatastoreMappingInput(NamedTuple):
+    datastore_name: str
+    path: str
+
+
+DatastoreMappingFunction: TypeAlias = Callable[[DatastoreMappingInput], DatastoreMappingInput]
+"""Input is datastore record information from the source repository.  Output is
+that information mapped to the target repository.
 """
 
 
@@ -24,15 +30,11 @@ class DatastoreMapper:
         Datastore to which records will be written in the target repository.
     """
 
-    def __init__(self, datastore_mapping: DatastoreMappingConfig, target_datastore: Datastore) -> None:
-        self._mapping = dict(datastore_mapping)
-        self._table_names = {}
-        for target_name in datastore_mapping.values():
-            if target_name not in target_datastore.names:
-                raise ValueError(
-                    f"Target datastore is not available in the destination repository: {target_name}"
-                )
-            self._table_names[target_name] = _get_table_name(target_datastore, target_name)
+    def __init__(self, datastore_mapping: DatastoreMappingFunction, target_datastore: Datastore) -> None:
+        self._mapping = datastore_mapping
+        self._target_datastore = target_datastore
+        # Mapping from datastore name to datastore 'opaque table name'.
+        self._table_names: dict[str, str] = {}
 
     def map_to_target(self, records: list[DatastoreRow]) -> dict[str, DatastoreRecordData]:
         """Given a flat list of records, generate the nested structure
@@ -42,28 +44,34 @@ class DatastoreMapper:
         # Datastore name -> (dataset UUID -> list of file info objects)
         values: dict[str, dict[DatasetId, list[StoredFileInfo]]] = {}
         for r in records:
-            output_datastore_name = self._mapping.get(r.datastore_name)
-            if output_datastore_name is None:
-                raise RuntimeError(
-                    f"No mapping to target datastore defined for source datastore '{r.datastore_name}'"
-                )
-            datasets = values.setdefault(output_datastore_name, {})
+            output_destination = self._mapping(
+                DatastoreMappingInput(datastore_name=r.datastore_name, path=r.file_info.path)
+            )
+            file_info = r.file_info.update(path=output_destination.path)
+            datasets = values.setdefault(output_destination.datastore_name, {})
             item_infos = datasets.setdefault(r.dataset_id, [])
-            item_infos.append(r.file_info)
+            item_infos.append(file_info)
 
         # Add extra intermediate data structures to match format expected by
         # Datastore.import_records.
         out: dict[str, DatastoreRecordData] = {}
         for output_datastore_name, datasets in values.items():
             record_data = DatastoreRecordData()
-            table_name = self._table_names[output_datastore_name]
+            table_name = self._get_table_name(output_datastore_name)
             record_data.records = {k: {table_name: v} for k, v in datasets.items()}
             out[output_datastore_name] = record_data
 
         return out
 
+    def _get_table_name(self, datastore_name: str) -> str:
+        if (table_name := self._table_names.get(datastore_name)) is not None:
+            return table_name
+        table_name = _find_table_name(self._target_datastore, datastore_name)
+        self._table_names[datastore_name] = table_name
+        return table_name
 
-def _get_table_name(datastore: Datastore, datastore_name: str) -> str:
+
+def _find_table_name(datastore: Datastore, datastore_name: str) -> str:
     file_datastore = _get_child_datastore(datastore, datastore_name)
     if file_datastore is None:
         raise ValueError(f"Target datastore not found: {datastore_name}")

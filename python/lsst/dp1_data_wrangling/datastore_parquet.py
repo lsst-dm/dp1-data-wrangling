@@ -95,7 +95,7 @@ def _convert_record(
 class DatastoreRow(NamedTuple):
     datastore_name: str
     dataset_id: DatasetId
-    file_info: StoredDatastoreItemInfo
+    file_info: StoredFileInfo
 
 
 def read_datastore_records_from_file(input_file: str) -> Iterator[list[DatastoreRow]]:

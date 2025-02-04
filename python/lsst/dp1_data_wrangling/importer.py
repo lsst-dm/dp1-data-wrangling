@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import re
 from itertools import groupby
 
 from lsst.daf.butler import Butler, DatasetRef, DatasetType
 
 from .dataset_types import import_dataset_types
 from .datasets_parquet import read_dataset_refs_from_file
-from .datastore_mapping import DatastoreMapper, DatastoreMappingConfig
+from .datastore_mapping import (
+    DatastoreMapper,
+    DatastoreMappingFunction,
+    DatastoreMappingInput,
+)
 from .datastore_parquet import read_datastore_records_from_file
 from .dimension_record_parquet import read_dimension_records_from_file
 from .index import ExportIndex
@@ -21,7 +26,22 @@ def main() -> None:
     Butler.makeRepo(OUTPUT_REPO)
     butler = Butler(OUTPUT_REPO, writeable=True)
     importer = Importer(INPUT_DIRECTORY, butler)
-    importer.import_all(datastore_mapping={"FileDatastore@<butlerRoot>": "FileDatastore@<butlerRoot>"})
+    importer.import_all(datastore_mapping=_datastore_mapping_function)
+
+
+def _datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
+    path = input.path
+    path = path.replace(
+        "file:///sdf/data/rubin/lsstdata/offline/instrument/LSSTComCam/", "external/raw/LSSTComCam/"
+    )
+
+    if re.match(r"^[\w+]+://", path):
+        raise ValueError(f"Unhandled absolute path to datastore file: {path}")
+
+    # /repo/main and target repo both use the default
+    # "FileDatastore@<butlerRoot>" datastore name, so we don't need to remap
+    # the datastore name.
+    return input._replace(path=path)
 
 
 class Importer:
@@ -29,7 +49,7 @@ class Importer:
         self._paths = ExportPaths(input_path)
         self._butler = butler
 
-    def import_all(self, datastore_mapping: DatastoreMappingConfig) -> None:
+    def import_all(self, datastore_mapping: DatastoreMappingFunction) -> None:
         index = read_model_from_file(ExportIndex, self._paths.index_path())
 
         # Dataset types have to be registered outside the transaction,
@@ -75,8 +95,8 @@ class Importer:
                         expand=False,
                     )
 
-    def _import_datastore(self, config: DatastoreMappingConfig) -> None:
-        mapper = DatastoreMapper(config, self._butler._datastore)
+    def _import_datastore(self, datastore_mapping: DatastoreMappingFunction) -> None:
+        mapper = DatastoreMapper(datastore_mapping, self._butler._datastore)
         for batch in read_datastore_records_from_file(self._paths.datastore_parquet_path()):
             records = mapper.map_to_target(batch)
             self._butler._datastore.import_records(records)
