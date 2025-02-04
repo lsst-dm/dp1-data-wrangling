@@ -3,6 +3,7 @@ import re
 
 _DIMENSION_SUBDIRECTORY = "dimensions"
 _DATASETS_SUBDIRECTORY = "datasets"
+_ASSOCIATION_SUBDIRECTORY = "associations"
 
 
 class ExportPaths:
@@ -11,7 +12,7 @@ class ExportPaths:
 
     def create_directories(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
-        for dir in [_DIMENSION_SUBDIRECTORY, _DATASETS_SUBDIRECTORY]:
+        for dir in [_DIMENSION_SUBDIRECTORY, _DATASETS_SUBDIRECTORY, _ASSOCIATION_SUBDIRECTORY]:
             self._dir.joinpath(dir).mkdir(exist_ok=True)
 
     def _join(self, *path_fragments: str) -> str:
@@ -28,6 +29,9 @@ class ExportPaths:
 
     def dataset_parquet_path(self, dataset_type_name: str) -> str:
         return self._join(_DATASETS_SUBDIRECTORY, dataset_type_name)
+
+    def dataset_association_parquet_path(self, dataset_type_name: str) -> str:
+        return self._join(_ASSOCIATION_SUBDIRECTORY, dataset_type_name)
 
     def datastore_parquet_path(self) -> str:
         return self._join("datastore")
