@@ -54,7 +54,7 @@ DATASET_TYPES = [
     "ptc",
     # TODO: We might want to subset the_monster to only include portions that
     # overlap the DP1 dataset.
-    "the_monster_20240904",
+    # "the_monster_20240904",
     "fgcmLookUpTable",
 ]
 
