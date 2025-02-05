@@ -22,8 +22,13 @@ class DimensionRecordParquetWriter:
         self._records: DimensionRecordSet = DimensionRecordSet(dimension)
         self._schema = DimensionRecordTable.make_arrow_schema(dimension)
         self._writer = ParquetWriter(output_file, self._schema)
+        self._finished = False
 
     def add_record(self, record: DimensionRecord) -> None:
+        if self._finished:
+            raise RuntimeError(
+                f"Can't write rows to already-closed parquet file for dimension {self._dimension.name}"
+            )
         self._records.add(record)
         if len(self._records) >= _MAX_ROWS_PER_WRITE:
             self._flush_records()
@@ -34,11 +39,14 @@ class DimensionRecordParquetWriter:
         self._records = DimensionRecordSet(self._dimension)
 
     def finish(self) -> None:
+        if self._finished:
+            return
+
         self._flush_records()
         self._writer.close()
-        data_id_columns = list(self._dimension.schema.required.names)
 
         df = pandas.read_parquet(self._output_file)
+        data_id_columns = list(self._dimension.schema.required.names)
         # De-duplicate the dimension records.  Because the records were
         # inserted from DatasetRefs of multiple dataset types, there is likely
         # to be significant duplication.
@@ -48,6 +56,8 @@ class DimensionRecordParquetWriter:
         # compression and insert performance.
         df.sort_values(by=data_id_columns, inplace=True)
         df.to_parquet(self._output_file, schema=self._schema, index=False)
+
+        self._finished = True
 
 
 def read_dimension_records_from_file(

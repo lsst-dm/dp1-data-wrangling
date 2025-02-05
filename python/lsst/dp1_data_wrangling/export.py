@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import itertools
-import logging
 from collections.abc import Iterable, Iterator
 from typing import TypeVar
 
 from lsst.daf.butler import (
     Butler,
     CollectionType,
+    DataCoordinate,
     DatasetAssociation,
     DatasetType,
     DimensionRecord,
 )
+from pyarrow.parquet import ParquetFile
 
 from .dataset_types import export_dataset_types
 from .datasets_parquet import DatasetAssociationParquetWriter, DatasetsParquetWriter
@@ -20,8 +21,6 @@ from .dimension_record_parquet import DimensionRecordParquetWriter
 from .index import ExportIndex
 from .paths import ExportPaths
 from .utils import write_model_to_file
-
-_LOGGER = logging.getLogger(__name__)
 
 COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
 # Based on a preliminary list provided by Jim Bosch at
@@ -70,7 +69,36 @@ def main() -> None:
         dumper = DatasetsDumper(OUTPUT_DIRECTORY, butler)
         for dt in DATASET_TYPES:
             dumper.dump_refs(dt, COLLECTIONS)
+        _dump_extra_visit_dimensions(butler, dumper)
         dumper.finish()
+
+
+def _dump_extra_visit_dimensions(butler: Butler, dumper: DatasetsDumper) -> None:
+    # Most of the dimension records will have been exported while exporting
+    # datasets.
+    #
+    # However, there are some special visit-related dimensions that are not referenced directly by
+    # dataset data IDs, and need to be handled specially.
+    # These are the dimensions listed as "populated_by: visit" in the dimension universe YAML.
+    with butler.query() as query:
+        dumper.dump_dimension_records(
+            query.dimension_records("visit_system").where("instrument='LSSTComCam'")
+        )
+
+    for batch in _read_referenced_visits(dumper):
+        data_coordinates = [DataCoordinate.standardize(visit, universe=butler.dimensions) for visit in batch]
+        with butler.query() as query:
+            query = query.join_data_coordinates(data_coordinates)
+            dumper.dump_dimension_records(query.dimension_records("visit_system_membership"))
+            dumper.dump_dimension_records(query.dimension_records("visit_definition"))
+
+
+def _read_referenced_visits(dumper: DatasetsDumper) -> Iterator[list[dict[str, object]]]:
+    parquet_path = dumper.close_and_get_dimension_record_output_file("visit")
+    file = ParquetFile(parquet_path)
+    for batch in file.iter_batches(batch_size=MAX_ROWS_PER_WRITE, columns=["instrument", "id"]):
+        yield [{"instrument": v["instrument"], "visit": v["id"]} for v in batch.to_pylist()]
+    file.close()
 
 
 class DatasetsDumper:
@@ -98,6 +126,18 @@ class DatasetsDumper:
         self._generate_association_output(dataset_type, collections)
         self._generate_dataset_output(dataset_type, collections)
 
+    def dump_dimension_records(self, records: Iterable[DimensionRecord]) -> None:
+        for record in records:
+            self._add_dimension_record(record)
+
+    def close_and_get_dimension_record_output_file(self, dimension: str) -> str:
+        """Return the path where the parquet file for a given dimension can be
+        found.  No more records may be written for the given dimension after
+        this function is called.
+        """
+        self._dimensions[dimension].finish()
+        return self._paths.dimension_parquet_path(dimension)
+
     def _generate_dataset_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
         """Dump full list of datasets included in the given collections for the given dataset type"""
         writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type.name))
@@ -110,8 +150,9 @@ class DatasetsDumper:
                 for ref in refs:
                     self._collections_seen.add(ref.run)
                     # Write dimension records from these refs to separate dimension record files.
-                    for key, record in ref.dataId.records.items():
-                        self._add_dimension_record(key, record)
+                    for record in ref.dataId.records.values():
+                        if record is not None:
+                            self._add_dimension_record(record)
                 # Export datastore records (file paths etc) associated with these refs to a separate file.
                 datastore_records = self._butler._datastore.export_records(refs)
                 self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
@@ -169,10 +210,8 @@ class DatasetsDumper:
             for collection in collections:
                 exporter.saveCollection(collection)
 
-    def _add_dimension_record(self, dimension: str, record: DimensionRecord | None) -> None:
-        if record is None:
-            return
-
+    def _add_dimension_record(self, record: DimensionRecord) -> None:
+        dimension = record.definition.name
         writer = self._dimensions.get(dimension)
         if writer is None:
             writer = DimensionRecordParquetWriter(
