@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import logging
 from collections.abc import Iterable, Iterator
 from typing import TypeVar
 
@@ -19,6 +20,8 @@ from .dimension_record_parquet import DimensionRecordParquetWriter
 from .index import ExportIndex
 from .paths import ExportPaths
 from .utils import write_model_to_file
+
+_LOGGER = logging.getLogger(__name__)
 
 COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
 # Based on a preliminary list provided by Jim Bosch at
@@ -42,9 +45,18 @@ DATASET_TYPES = [
     # The list asks for all *_metadata, *_log, *_config datasets, but those
     # are not included here yet.
     "finalVisitSummary",
-    # Wasn't on Jim's list because he hasn't added prerequisite refcats/calibs yet,
-    # but I need a way to test calibs and this is one we definitely use.
+    # "Tier 1c" calibration products and ancillary inputs
+    "bfk",
+    "camera",
+    "dark",
+    "bias",
+    "defects",
     "flat",
+    "ptc",
+    # TODO: We might want to subset the_monster to only include portions that
+    # overlap the DP1 dataset.
+    "the_monster_20240904",
+    "fgcmLookUpTable",
 ]
 
 OUTPUT_DIRECTORY = "dp1-dump-test"
@@ -83,8 +95,8 @@ class DatasetsDumper:
         self._collections_seen.update(collections)
 
         dataset_type = self._butler.get_dataset_type(dataset_type_name)
-        self._generate_dataset_output(dataset_type, collections)
         self._generate_association_output(dataset_type, collections)
+        self._generate_dataset_output(dataset_type, collections)
 
     def _generate_dataset_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
         """Dump full list of datasets included in the given collections for the given dataset type"""
