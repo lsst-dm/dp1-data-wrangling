@@ -3,10 +3,19 @@ from __future__ import annotations
 import re
 from itertools import groupby
 
-from lsst.daf.butler import Butler, DatasetRef, DatasetType
+from lsst.daf.butler import (
+    Butler,
+    CollectionType,
+    DatasetAssociation,
+    DatasetRef,
+    DatasetType,
+)
 
 from .dataset_types import import_dataset_types
-from .datasets_parquet import read_dataset_refs_from_file
+from .datasets_parquet import (
+    read_dataset_associations_from_file,
+    read_dataset_refs_from_file,
+)
 from .datastore_mapping import (
     DatastoreMapper,
     DatastoreMappingFunction,
@@ -60,6 +69,7 @@ class Importer:
             self._butler.import_(filename=self._paths.collections_path())
             self._import_dimension_records(index.dimensions)
             self._import_datasets(dataset_types)
+            self._import_associations(dataset_types)
             self._import_datastore(datastore_mapping)
 
     def _import_dimension_records(self, dimensions: list[str]) -> None:
@@ -90,8 +100,30 @@ class Importer:
                         # slow because it generates a query for every single
                         # ref we are inserting.  We currently do not plan to
                         # use live ObsCore for data releases.
+                        #
+                        # TODO: The export data contains the dimension records
+                        # necessary to expand the data IDs ourselves, so
+                        # writing the logic to plumb that in would allow Live
+                        # ObsCore to work without the queries.
                         expand=False,
                     )
+
+    def _import_associations(self, dataset_types: list[DatasetType]) -> None:
+        for dt in dataset_types:
+            path = self._paths.dataset_association_parquet_path(dt.name)
+            for batch in read_dataset_associations_from_file(dt, path):
+                batch.sort(key=_get_collection)
+                for collection, rows in groupby(batch, _get_collection):
+                    collection_type = self._butler.collections.get_info(collection).type
+                    if collection_type == CollectionType.TAGGED:
+                        self._butler.registry.associate(collection, [r.ref for r in rows])
+                    elif collection_type == CollectionType.CALIBRATION:
+                        for row in rows:
+                            self._butler.registry.certify(collection, [row.ref], row.timespan)
+                    else:
+                        raise ValueError(
+                            f"Unexpected collection type '{collection_type}' when importing associations for dataset type '{dt.name}'"
+                        )
 
     def _import_datastore(self, datastore_mapping: DatastoreMappingFunction) -> None:
         mapper = DatastoreMapper(datastore_mapping, self._butler._datastore)
@@ -102,3 +134,7 @@ class Importer:
 
 def _get_run(ref: DatasetRef) -> str:
     return ref.run
+
+
+def _get_collection(association: DatasetAssociation) -> str:
+    return association.collection

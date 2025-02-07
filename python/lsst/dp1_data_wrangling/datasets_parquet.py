@@ -32,11 +32,8 @@ class DatasetsParquetWriter:
 
 
 def read_dataset_refs_from_file(dataset_type: DatasetType, input_file: str) -> Iterator[list[DatasetRef]]:
-    batch_size = 10000
-    reader = ParquetFile(input_file)
-    for batch in reader.iter_batches(batch_size=batch_size):
-        rows = batch.to_pylist()
-        yield [_convert_row_to_ref(dataset_type, row) for row in rows]
+    for batch in _read_rows_from_parquet(input_file):
+        yield [_convert_row_to_ref(dataset_type, row) for row in batch]
 
 
 class DatasetAssociationParquetWriter:
@@ -61,6 +58,13 @@ class DatasetAssociationParquetWriter:
         self._writer.close()
 
 
+def read_dataset_associations_from_file(
+    dataset_type: DatasetType, input_file: str
+) -> Iterator[list[DatasetAssociation]]:
+    for batch in _read_rows_from_parquet(input_file):
+        yield [_convert_row_to_association(dataset_type, row) for row in batch]
+
+
 def _convert_ref_to_row(ref: DatasetRef) -> dict[str, object]:
     row = dict(ref.dataId.required)
     row["dataset_id"] = ref.id.bytes
@@ -71,8 +75,14 @@ def _convert_ref_to_row(ref: DatasetRef) -> dict[str, object]:
 def _convert_association_to_row(association: DatasetAssociation) -> dict[str, object]:
     row = _convert_ref_to_row(association.ref)
     row["collection"] = association.collection
-    row["timespan"] = _convert_timespan(association.timespan)
+    row["timespan"] = _convert_timespan_to_dict(association.timespan)
     return row
+
+
+def _convert_row_to_association(dataset_type: DatasetType, row: dict[str, object]) -> DatasetAssociation:
+    ref = _convert_row_to_ref(dataset_type, row)
+    timespan = row["timespan"]
+    return DatasetAssociation(ref, row["collection"], timespan)
 
 
 def _convert_row_to_ref(dataset_type: DatasetType, row: dict[str, object]) -> DatasetRef:
@@ -105,6 +115,16 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
     return schema
 
 
-def _convert_timespan(value: Timespan | None) -> dict[str, int] | None:
+def _convert_timespan_to_dict(value: Timespan | None) -> dict[str, int] | None:
     # Convert Timespan to a representation that pyarrow understands.
     return {"begin_nsec": value.nsec[0], "end_nsec": value.nsec[1]} if value is not None else None
+
+
+def _read_rows_from_parquet(input_file: str) -> Iterator[list[dict[str, object]]]:
+    batch_size = 10000
+    reader = ParquetFile(input_file)
+    try:
+        for batch in reader.iter_batches(batch_size=batch_size):
+            yield batch.to_pylist()
+    finally:
+        reader.close()
