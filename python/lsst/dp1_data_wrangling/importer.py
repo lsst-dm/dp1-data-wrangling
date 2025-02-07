@@ -31,9 +31,7 @@ def main() -> None:
 
 def _datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
     path = input.path
-    path = path.replace(
-        "file:///sdf/data/rubin/lsstdata/offline/instrument/LSSTComCam/", "external/raw/LSSTComCam/"
-    )
+    path = path.replace("file:///sdf/data/rubin/", "external/rubin/")
 
     if re.match(r"^[\w+]+://", path):
         raise ValueError(f"Unhandled absolute path to datastore file: {path}")
