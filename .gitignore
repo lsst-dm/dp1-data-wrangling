@@ -22,4 +22,5 @@ pytest_session.txt
 
 import-test-repo/
 dp1-dump-test/
+datastore_symlinks/
 .env

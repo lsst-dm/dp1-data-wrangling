@@ -43,14 +43,14 @@ DATASET_TYPES = [
     "fgcmLookUpTable",
 ]
 
-OUTPUT_DIRECTORY = "dp1-dump-test"
+EXPORT_DIRECTORY = "dp1-dump-test"
 
 
 def main() -> None:
     butler = Butler("/repo/main")
 
     with butler.registry.caching_context():
-        dumper = Exporter(OUTPUT_DIRECTORY, butler)
+        dumper = Exporter(EXPORT_DIRECTORY, butler)
         for dt in DATASET_TYPES:
             dumper.dump_refs(dt, COLLECTIONS)
         _dump_extra_visit_dimensions(butler, dumper)
