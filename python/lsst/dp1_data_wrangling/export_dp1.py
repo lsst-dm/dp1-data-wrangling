@@ -7,7 +7,7 @@ from pyarrow.parquet import ParquetFile
 
 from .exporter import MAX_ROWS_PER_WRITE, Exporter
 
-COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"
+COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_06/DM-48810"
 # Based on a preliminary list provided by Jim Bosch at
 # https://rubinobs.atlassian.net/wiki/spaces/~jbosch/pages/423559233/DP1+Dataset+Retention+Removal+Planning
 DATASET_TYPES = [
