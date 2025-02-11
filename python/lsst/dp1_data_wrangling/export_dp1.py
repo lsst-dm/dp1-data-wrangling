@@ -7,7 +7,7 @@ from pyarrow.parquet import ParquetFile
 
 from .exporter import MAX_ROWS_PER_WRITE, Exporter
 
-COLLECTIONS = ["LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"]
+COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_03/DM-48478"
 # Based on a preliminary list provided by Jim Bosch at
 # https://rubinobs.atlassian.net/wiki/spaces/~jbosch/pages/423559233/DP1+Dataset+Retention+Removal+Planning
 DATASET_TYPES = [
@@ -25,9 +25,8 @@ DATASET_TYPES = [
     "forcedSourceTable_tract",
     "diaObjectTable_tract",
     "diaSourceTable",
-    # "Tier 1b" minor data products.
-    # The list asks for all *_metadata, *_log, *_config datasets, but those
-    # are not included here yet.
+    # "Tier 1b" minor data products.  Additional dataset types from this list
+    # are located in _find_extra_dataset_types(), below.
     "finalVisitSummary",
     # "Tier 1c" calibration products and ancillary inputs
     "bfk",
@@ -51,10 +50,22 @@ def main() -> None:
 
     with butler.registry.caching_context():
         dumper = Exporter(EXPORT_DIRECTORY, butler)
-        for dt in DATASET_TYPES:
-            dumper.dump_refs(dt, COLLECTIONS)
+        dataset_types = set(DATASET_TYPES).union(_find_extra_dataset_types(butler))
+        for dt in dataset_types:
+            dumper.dump_refs(dt, [COLLECTION])
         _dump_extra_visit_dimensions(butler, dumper)
         dumper.finish()
+
+
+def _find_extra_dataset_types(butler: Butler) -> set[str]:
+    info = butler.collections.get_info(COLLECTION, include_summary=True)
+    # Find all metadata, log, and config dataset types. These are included for
+    # provenance.
+    types = set()
+    for dt in info.dataset_types:
+        if dt.endswith("_metadata") or dt.endswith("_log") or dt.endswith("_config"):
+            types.add(dt)
+    return types
 
 
 def _dump_extra_visit_dimensions(butler: Butler, dumper: Exporter) -> None:
