@@ -22,9 +22,9 @@ DATASET_TYPES = [
     "deepCoadd_calexp_background",
     "goodSeeingCoadd",
     "objectTable_tract",
-    "forcedSourceTable_tract",
+    "forcedSourceTable",
     "diaObjectTable_tract",
-    "diaSourceTable",
+    "diaSourceTable_tract",
     # "Tier 1b" minor data products.  Additional dataset types from this list
     # are located in _find_extra_dataset_types(), below.
     "finalVisitSummary",
