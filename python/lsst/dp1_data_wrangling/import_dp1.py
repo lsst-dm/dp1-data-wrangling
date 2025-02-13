@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 
-from lsst.daf.butler import Butler
+import click
+from lsst.daf.butler import Butler, Config
 
 from .datastore_mapping import DatastoreMappingInput
 from .export_dp1 import EXPORT_DIRECTORY
@@ -11,8 +12,14 @@ from .importer import Importer
 OUTPUT_REPO = "import-test-repo"
 
 
-def main() -> None:
-    Butler.makeRepo(OUTPUT_REPO)
+@click.command()
+@click.option("--seed", help="Butler seed configuration file to use when creating repository")
+def main(seed: str | None) -> None:
+    if seed:
+        config = Config(seed)
+    else:
+        config = None
+    Butler.makeRepo(OUTPUT_REPO, config=config)
     butler = Butler(OUTPUT_REPO, writeable=True)
     importer = Importer(EXPORT_DIRECTORY, butler)
     importer.import_all(datastore_mapping=_datastore_mapping_function)
