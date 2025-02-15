@@ -22,7 +22,13 @@ def main() -> None:
     for path in _generate_file_list(DATASTORE_ROOT_PATH, datastore_records_file):
         output_path = output_dir.joinpath(path.relative_target)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.symlink_to(path.absolute_source)
+        try:
+            output_path.symlink_to(path.absolute_source)
+        except FileExistsError:
+            # More than one dataset may point to the same file (e.g. log
+            # files combined together in a .zip file).  So it's not an error
+            # for a file to show up more than once.
+            pass
         count += 1
         if (count % 10000) == 0:
             print(count)
@@ -38,6 +44,11 @@ def _generate_file_list(datastore_root_path: str, datastore_records_file_path: s
 
 
 def _make_path_absolute(datastore_root_path: str, file_path: str) -> str:
+    # Strip a trailing URI fragment like '#unzip=...'.  These are used to
+    # indicate special loading behaviors for a file, but are not part of the
+    # actual path.
+    file_path = file_path.split("#")[0]
+
     if file_path.startswith("file://"):
         return file_path.removeprefix("file://")
 
