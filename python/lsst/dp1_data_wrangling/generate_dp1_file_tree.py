@@ -39,20 +39,25 @@ def _generate_file_list(datastore_root_path: str, datastore_records_file_path: s
         for row in batch:
             original_path = row.file_info.path
             absolute_path = _make_path_absolute(datastore_root_path, original_path)
-            target_path = make_datastore_path_relative(original_path)
+            target_path = _strip_fragment(make_datastore_path_relative(original_path))
             yield MappedPath(absolute_source=absolute_path, relative_target=target_path)
 
 
 def _make_path_absolute(datastore_root_path: str, file_path: str) -> str:
-    # Strip a trailing URI fragment like '#unzip=...'.  These are used to
-    # indicate special loading behaviors for a file, but are not part of the
-    # actual path.
-    file_path = file_path.split("#")[0]
+    file_path = _strip_fragment(file_path)
 
     if file_path.startswith("file://"):
         return file_path.removeprefix("file://")
 
     return str(Path(datastore_root_path).joinpath(file_path))
+
+
+def _strip_fragment(file_path: str) -> str:
+    """Strip a trailing URI fragment like '#unzip=...'.  These are used to
+    indicate special loading behaviors for a file, but are not part of the
+    actual path.
+    """
+    return file_path.split("#")[0]
 
 
 class MappedPath(NamedTuple):
