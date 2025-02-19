@@ -72,9 +72,10 @@ def _dump_extra_visit_dimensions(butler: Butler, dumper: Exporter) -> None:
     # Most of the dimension records will have been exported while exporting
     # datasets.
     #
-    # However, there are some special visit-related dimensions that are not referenced directly by
-    # dataset data IDs, and need to be handled specially.
-    # These are the dimensions listed as "populated_by: visit" in the dimension universe YAML.
+    # However, there are some special visit-related dimensions that are not
+    # referenced directly by dataset data IDs, and need to be handled
+    # specially.  These are the dimensions listed as "populated_by: visit" in
+    # the dimension universe YAML.
     with butler.query() as query:
         dumper.dump_dimension_records(
             query.dimension_records("visit_system").where("instrument='LSSTComCam'")

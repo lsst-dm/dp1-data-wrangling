@@ -61,7 +61,9 @@ class Exporter:
         return self._paths.dimension_parquet_path(dimension)
 
     def _generate_dataset_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
-        """Dump full list of datasets included in the given collections for the given dataset type"""
+        """Dump full list of datasets included in the given collections for the
+        given dataset type
+        """
         writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type.name))
         with self._butler.query() as query:
             results = query.datasets(dataset_type, collections, find_first=False).with_dimension_records()
@@ -71,17 +73,21 @@ class Exporter:
                 writer.add_refs(refs)
                 for ref in refs:
                     self._collections_seen.add(ref.run)
-                    # Write dimension records from these refs to separate dimension record files.
+                    # Write dimension records from these refs to separate
+                    # dimension record files.
                     for record in ref.dataId.records.values():
                         if record is not None:
                             self._add_dimension_record(record)
-                # Export datastore records (file paths etc) associated with these refs to a separate file.
+                # Export datastore records (file paths etc) associated with
+                # these refs to a separate file.
                 datastore_records = self._butler._datastore.export_records(refs)
                 self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
         writer.finish()
 
     def _generate_association_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
-        """Dump a list of datasets associated with tag and calibration collections."""
+        """Dump a list of datasets associated with tag and calibration
+        collections.
+        """
         tag_and_calib_collections = list(
             self._butler.collections.query(
                 collections,

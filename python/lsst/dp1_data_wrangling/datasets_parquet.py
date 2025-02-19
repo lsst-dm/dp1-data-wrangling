@@ -107,7 +107,8 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         dimension = dimensions.universe.dimensions[dimension]
         data_type = dimension.primary_key.to_arrow().data_type
         if pyarrow.types.is_string(data_type):
-            # Data ID string values always have low cardinality, so dictionary encoding helps a lot.
+            # Data ID string values always have low cardinality, so dictionary
+            # encoding helps a lot.
             data_type = pyarrow.dictionary(pyarrow.int32(), data_type)
         field = pyarrow.field(dimension.name, data_type, nullable=False)
         schema.append(field)
