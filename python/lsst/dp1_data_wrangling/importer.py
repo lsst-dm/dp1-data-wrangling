@@ -49,10 +49,10 @@ class Importer:
         dimensions = universe.sorted(dimensions)
         for dimension_name in dimensions:
             element = universe[dimension_name]
-            # If a dimension doesn't "have its own table", then it's a virtual dimension
-            # defined by another dimension, and we can't insert rows for it.  In the
-            # default LSST universe, "band" doesn't have its own table because it is
-            # derived from "physical_filter".
+            # If a dimension doesn't "have its own table", then it's a virtual
+            # dimension defined by another dimension, and we can't insert rows
+            # for it.  In the default LSST universe, "band" doesn't have its
+            # own table because it is derived from "physical_filter".
             if element.has_own_table:
                 path = self._paths.dimension_parquet_path(element.name)
                 for table in read_dimension_records_from_file(element, path):
@@ -62,8 +62,8 @@ class Importer:
         for dt in dataset_types:
             path = self._paths.dataset_parquet_path(dt.name)
             for batch in read_dataset_refs_from_file(dt, path):
-                # _importDatasets can only import refs from one run at a time, so
-                # chunk by run.
+                # _importDatasets can only import refs from one run at a time,
+                # so chunk by run.
                 for run, refs in groupby(sorted(batch, key=_get_run), _get_run):
                     self._butler.registry._importDatasets(
                         refs,
@@ -94,7 +94,8 @@ class Importer:
                             self._butler.registry.certify(collection, [row.ref], row.timespan)
                     else:
                         raise ValueError(
-                            f"Unexpected collection type '{collection_type}' when importing associations for dataset type '{dt.name}'"
+                            f"Unexpected collection type '{collection_type}'"
+                            f" when importing associations for dataset type '{dt.name}'"
                         )
 
     def _import_datastore(self, datastore_mapping: DatastoreMappingFunction) -> None:
