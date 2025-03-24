@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 from collections.abc import Iterator
 
 from lsst.daf.butler import Butler, DataCoordinate
@@ -7,27 +8,33 @@ from pyarrow.parquet import ParquetFile
 
 from .exporter import MAX_ROWS_PER_WRITE, Exporter
 
-COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_06/DM-48810"
+COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472"
 # Based on a preliminary list provided by Jim Bosch at
 # https://rubinobs.atlassian.net/wiki/spaces/~jbosch/pages/423559233/DP1+Dataset+Retention+Removal+Planning
 DATASET_TYPES = [
-    # "Tier 1" major data products
+    # "Tier 1" major data products.
     "raw",
-    "ccdVisitTable",
-    "visitTable",
-    "pvi",
-    "pvi_background",
-    "sourceTable_visit",
-    "deepCoadd_calexp",
-    "deepCoadd_calexp_background",
-    "goodSeeingCoadd",
-    "objectTable_tract",
-    "forcedSourceTable",
-    "diaObjectTable_tract",
-    "diaSourceTable_tract",
+    "visit_detector_table",
+    "visit_table",
+    "visit_image",
+    "visit_image_background",
+    "source",
+    "deep_coadd",
+    "deep_coadd_background",
+    "template_coadd",
+    "object",
+    "object_scarlet_models",
+    "object_forced_source",
+    "dia_object_forced_source",
+    "dia_object",
+    "dia_source",
+    # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types() below.
+    "ss_source",
+    "ss_object"
     # "Tier 1b" minor data products.  Additional dataset types from this list
     # are located in _find_extra_dataset_types(), below.
-    "finalVisitSummary",
+    "visit_summary",
+    "deep_coadd_n_image",
     # "Tier 1c" calibration products and ancillary inputs
     "bfk",
     "camera",
@@ -38,7 +45,7 @@ DATASET_TYPES = [
     "ptc",
     # TODO: We might want to subset the_monster to only include portions that
     # overlap the DP1 dataset.
-    "the_monster_20240904",
+    "the_monster_20250219",
     "fgcmLookUpTable",
 ]
 
@@ -63,7 +70,12 @@ def _find_extra_dataset_types(butler: Butler) -> set[str]:
     # provenance.
     types = set()
     for dt in info.dataset_types:
-        if dt.endswith("_metadata") or dt.endswith("_log") or dt.endswith("_config"):
+        if (
+            dt.endswith("_metadata")
+            or dt.endswith("_log")
+            or dt.endswith("_config")
+            or fnmatch.fnmatchcase(dt, "deepCoadd_*_consolidated_map*")
+        ):
             types.add(dt)
     return types
 
