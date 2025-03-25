@@ -33,5 +33,18 @@ gcloud storage rsync --recursive --no-ignore-symlinks datastore_symlinks gs://bu
 
 Then open up an RSP notebook session in the target IDF environment, and upload the `dp1-dump.tar` file created at USDF.
 ```
+# Load the Butler Registry DB
+setup lsst_distrib
+tar -xf ~/dp1-dump.tar
+python import_preliminary_dp1.py --seed butler-configs/idfdev.yaml # or other seed depending on environment
+# Create a top-level collection chain pointing to the imported collection
+butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472
+```
 
+At USDF:
+```
+# Generate an ObsCore table for qserv
+python import_preliminary_dp1.py
+butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472
+butler obscore export --format csv -c ~/repos/dax_obscore/configs/dp1.yaml import-test-repo dp1.csv
 ```
