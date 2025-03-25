@@ -29,8 +29,10 @@ DATASET_TYPES = [
     "dia_object",
     "dia_source",
     # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types() below.
-    "ss_source",
-    "ss_object"
+    # "ss_source" and "ss_object" are not in the ComCam DRP output yet,
+    # but they will be in future DRP runs.
+    # "ss_source",
+    # "ss_object",
     # "Tier 1b" minor data products.  Additional dataset types from this list
     # are located in _find_extra_dataset_types(), below.
     "visit_summary",
