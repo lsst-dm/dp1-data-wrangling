@@ -1,3 +1,3 @@
 registry:
   db: postgresql://butler@dp1.rsp-sql-dev.internal:5432/dp1
-  namespace: prelim1
+  namespace: prelim2
