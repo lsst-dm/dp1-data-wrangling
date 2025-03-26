@@ -52,6 +52,9 @@ class Exporter:
         for record in records:
             self._add_dimension_record(record)
 
+    def did_export_dimension_records(self, dimension: str) -> str:
+        return dimension in self._dimensions
+
     def close_and_get_dimension_record_output_file(self, dimension: str) -> str:
         """Return the path where the parquet file for a given dimension can be
         found.  No more records may be written for the given dimension after

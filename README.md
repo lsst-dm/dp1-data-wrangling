@@ -48,3 +48,19 @@ python import_preliminary_dp1.py
 butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472
 butler obscore export --format csv -c ~/repos/dax_obscore/configs/dp1.yaml import-test-repo dp1.csv
 ```
+
+### Adding missing dataset types after-the-fact
+If you have already done the export/import process to set up the repository, but need to add
+additional dataset types, you can follow almost the same process as above with a few tweaks:
+
+```
+# Explicitly specify dataset types to export.
+python export_preliminary_dp1.py -t some_dataset_type -t other_dataset_type
+
+# Use cp instead of rsync for incremental transfer
+cd datastore_symlinks
+gcloud storage cp --recursive --no-ignore-symlinks . gs://butler-us-central1-dp1/
+
+# Tell importer that it's OK to add into an existing repository.
+python import_preliminary_dp1.py --use-existing-repo
+```

@@ -3,6 +3,7 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Iterator
 
+import click
 from lsst.daf.butler import Butler, DataCoordinate
 from pyarrow.parquet import ParquetFile
 
@@ -46,6 +47,7 @@ DATASET_TYPES = [
     "defects",
     "flat",
     "ptc",
+    "skyMap",
     # TODO: We might want to subset the_monster to only include portions that
     # overlap the DP1 dataset.
     "the_monster_20250219",
@@ -55,13 +57,19 @@ DATASET_TYPES = [
 EXPORT_DIRECTORY = "dp1-dump-test"
 
 
-def main() -> None:
+@click.command
+@click.option("--dataset-type", "-t", multiple=True, help="Override default dataset types to export")
+def main(dataset_type: list[str]) -> None:
     butler = Butler("/repo/main")
 
     with butler.registry.caching_context():
         dumper = Exporter(EXPORT_DIRECTORY, butler)
-        dataset_types = set(DATASET_TYPES).union(_find_extra_dataset_types(butler))
-        for dt in dataset_types:
+
+        if dataset_type:
+            exported_types = set(dataset_type)
+        else:
+            exported_types = set(DATASET_TYPES).union(_find_extra_dataset_types(butler))
+        for dt in exported_types:
             dumper.dump_refs(dt, [COLLECTION])
         _dump_extra_visit_dimensions(butler, dumper)
         dumper.finish()
@@ -105,6 +113,8 @@ def _dump_extra_visit_dimensions(butler: Butler, dumper: Exporter) -> None:
 
 
 def _read_referenced_visits(dumper: Exporter) -> Iterator[list[dict[str, object]]]:
+    if not dumper.did_export_dimension_records("visit"):
+        return
     parquet_path = dumper.close_and_get_dimension_record_output_file("visit")
     file = ParquetFile(parquet_path)
     for batch in file.iter_batches(batch_size=MAX_ROWS_PER_WRITE, columns=["instrument", "id"]):
