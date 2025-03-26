@@ -28,7 +28,8 @@ DATASET_TYPES = [
     "dia_object_forced_source",
     "dia_object",
     "dia_source",
-    # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types() below.
+    # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types()
+    # below.
     # "ss_source" and "ss_object" are not in the ComCam DRP output yet,
     # but they will be in future DRP runs.
     # "ss_source",
