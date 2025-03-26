@@ -46,6 +46,7 @@ DATASET_TYPES = [
     "defects",
     "flat",
     "ptc",
+    "skyMap",
     # TODO: We might want to subset the_monster to only include portions that
     # overlap the DP1 dataset.
     "the_monster_20250219",
