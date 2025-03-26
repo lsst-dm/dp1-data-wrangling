@@ -14,12 +14,16 @@ OUTPUT_REPO = "import-test-repo"
 
 @click.command()
 @click.option("--seed", help="Butler seed configuration file to use when creating repository")
-def main(seed: str | None) -> None:
-    if seed:
-        config = Config(seed)
-    else:
-        config = None
-    Butler.makeRepo(OUTPUT_REPO, config=config)
+@click.option(
+    "--use-existing-repo", is_flag=True, help="Use existing Butler repository instead of creating a new one"
+)
+def main(seed: str | None, use_existing_repo: bool) -> None:
+    if not use_existing_repo:
+        if seed:
+            config = Config(seed)
+        else:
+            config = None
+        Butler.makeRepo(OUTPUT_REPO, config=config)
     butler = Butler(OUTPUT_REPO, writeable=True)
     importer = Importer(EXPORT_DIRECTORY, butler)
     importer.import_all(datastore_mapping=_datastore_mapping_function)
