@@ -31,10 +31,8 @@ DATASET_TYPES = [
     "dia_source",
     # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types()
     # below.
-    # "ss_source" and "ss_object" are not in the ComCam DRP output yet,
-    # but they will be in future DRP runs.
-    # "ss_source",
-    # "ss_object",
+    "ss_source",
+    "ss_object",
     # "Tier 1b" minor data products.  Additional dataset types from this list
     # are located in _find_extra_dataset_types(), below.
     "visit_summary",
@@ -46,12 +44,11 @@ DATASET_TYPES = [
     "bias",
     "defects",
     "flat",
+    "linearizer",
     "ptc",
-    "skyMap",
-    # TODO: We might want to subset the_monster to only include portions that
-    # overlap the DP1 dataset.
     "the_monster_20250219",
     "fgcmLookUpTable",
+    "skyMap",
 ]
 
 EXPORT_DIRECTORY = "dp1-dump-test"
