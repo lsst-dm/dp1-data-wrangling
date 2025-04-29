@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .datastore_parquet import read_datastore_records_from_file
-from .export_dp1 import EXPORT_DIRECTORY
+from .export_dp1 import DEFAULT_EXPORT_DIRECTORY
 from .import_dp1 import make_datastore_path_relative
 from .paths import ExportPaths
 
@@ -18,7 +18,7 @@ def main() -> None:
     output_dir.mkdir()
 
     count = 0
-    datastore_records_file = ExportPaths(EXPORT_DIRECTORY).datastore_parquet_path()
+    datastore_records_file = ExportPaths(DEFAULT_EXPORT_DIRECTORY).datastore_parquet_path()
     for path in _generate_file_list(DATASTORE_ROOT_PATH, datastore_records_file):
         output_path = output_dir.joinpath(path.relative_target)
         output_path.parent.mkdir(parents=True, exist_ok=True)
