@@ -4,22 +4,24 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
+import click
+
 from .datastore_parquet import read_datastore_records_from_file
-from .export_dp1 import EXPORT_DIRECTORY
+from .export_dp1 import DEFAULT_EXPORT_DIRECTORY
 from .import_dp1 import make_datastore_path_relative
 from .paths import ExportPaths
 
 
-def main() -> None:
-    DATASTORE_ROOT_PATH = "/sdf/group/rubin/repo/main/"
-    OUTPUT_DIRECTORY = "datastore_symlinks"
-
-    output_dir = Path(OUTPUT_DIRECTORY)
+@click.command
+@click.option("--input-root", default="/sdf/group/rubin/repo/dp1/")
+@click.option("--output-root", default="datastore_symlinks")
+def main(input_root: str, output_root: str) -> None:
+    output_dir = Path(output_root)
     output_dir.mkdir()
 
     count = 0
-    datastore_records_file = ExportPaths(EXPORT_DIRECTORY).datastore_parquet_path()
-    for path in _generate_file_list(DATASTORE_ROOT_PATH, datastore_records_file):
+    datastore_records_file = ExportPaths(DEFAULT_EXPORT_DIRECTORY).datastore_parquet_path()
+    for path in _generate_file_list(input_root, datastore_records_file):
         output_path = output_dir.joinpath(path.relative_target)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         try:

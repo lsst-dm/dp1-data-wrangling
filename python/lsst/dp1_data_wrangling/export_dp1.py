@@ -9,7 +9,6 @@ from pyarrow.parquet import ParquetFile
 
 from .exporter import MAX_ROWS_PER_WRITE, Exporter
 
-COLLECTION = "LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472"
 # Based on a preliminary list provided by Jim Bosch at
 # https://rubinobs.atlassian.net/wiki/spaces/~jbosch/pages/423559233/DP1+Dataset+Retention+Removal+Planning
 DATASET_TYPES = [
@@ -31,10 +30,8 @@ DATASET_TYPES = [
     "dia_source",
     # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types()
     # below.
-    # "ss_source" and "ss_object" are not in the ComCam DRP output yet,
-    # but they will be in future DRP runs.
-    # "ss_source",
-    # "ss_object",
+    "ss_source",
+    "ss_object",
     # "Tier 1b" minor data products.  Additional dataset types from this list
     # are located in _find_extra_dataset_types(), below.
     "visit_summary",
@@ -46,37 +43,39 @@ DATASET_TYPES = [
     "bias",
     "defects",
     "flat",
+    "linearizer",
     "ptc",
-    "skyMap",
-    # TODO: We might want to subset the_monster to only include portions that
-    # overlap the DP1 dataset.
     "the_monster_20250219",
     "fgcmLookUpTable",
+    "skyMap",
 ]
 
-EXPORT_DIRECTORY = "dp1-dump-test"
+DEFAULT_EXPORT_DIRECTORY = "dp1-dump"
 
 
 @click.command
 @click.option("--dataset-type", "-t", multiple=True, help="Override default dataset types to export")
-def main(dataset_type: list[str]) -> None:
-    butler = Butler("/repo/main")
+@click.option("--repo", default="/repo/dp1")
+@click.option("--collection", default="LSSTComCam/runs/DRP/DP1/v29_0_0/DM-50260")
+@click.option("--output-directory", default=DEFAULT_EXPORT_DIRECTORY)
+def main(dataset_type: list[str], repo: str, collection: str, output_directory: str) -> None:
+    butler = Butler(repo)
 
     with butler.registry.caching_context():
-        dumper = Exporter(EXPORT_DIRECTORY, butler)
+        dumper = Exporter(output_directory, butler)
 
         if dataset_type:
             exported_types = set(dataset_type)
         else:
-            exported_types = set(DATASET_TYPES).union(_find_extra_dataset_types(butler))
+            exported_types = set(DATASET_TYPES).union(_find_extra_dataset_types(butler, collection))
         for dt in exported_types:
-            dumper.dump_refs(dt, [COLLECTION])
+            dumper.dump_refs(dt, [collection])
         _dump_extra_visit_dimensions(butler, dumper)
         dumper.finish()
 
 
-def _find_extra_dataset_types(butler: Butler) -> set[str]:
-    info = butler.collections.get_info(COLLECTION, include_summary=True)
+def _find_extra_dataset_types(butler: Butler, collection: str) -> set[str]:
+    info = butler.collections.get_info(collection, include_summary=True)
     # Find all metadata, log, and config dataset types. These are included for
     # provenance.
     types = set()

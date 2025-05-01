@@ -12,7 +12,7 @@ At USDF:
 ```
 # Export from Postgres to parquet files.
 python export_preliminary_dp1.py
-tar -cf dp1-dump.tar dp1-dump-test/
+tar -cf dp1-dump.tar dp1-dump/
 
 # Generate a directory full of symlinks pointing
 # to the files that will be included in the
@@ -38,14 +38,8 @@ setup lsst_distrib
 tar -xf ~/dp1-dump.tar
 python import_preliminary_dp1.py --seed butler-configs/idfdev.yaml # or other seed depending on environment
 # Create a top-level collection chain pointing to the imported collection
-butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472
-```
-
-At USDF:
-```
+butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/v29_0_0/DM-50260
 # Generate an ObsCore table for qserv
-python import_preliminary_dp1.py
-butler collection-chain import-test-repo LSSTComCam/DP1 LSSTComCam/runs/DRP/DP1/w_2025_11/DM-49472
 butler obscore export --format csv -c ~/repos/dax_obscore/configs/dp1.yaml import-test-repo dp1.csv
 ```
 
