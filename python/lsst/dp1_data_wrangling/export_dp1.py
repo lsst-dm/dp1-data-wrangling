@@ -66,7 +66,7 @@ def main(dataset_type: list[str], repo: str, collection: str, output_directory: 
     butler = Butler(repo)
 
     with butler.registry.caching_context():
-        dumper = Exporter(output_directory, butler)
+        dumper = Exporter(output_directory, butler, root_collection=collection)
 
         if dataset_type:
             exported_types = set(dataset_type)
