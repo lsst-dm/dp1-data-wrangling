@@ -28,6 +28,7 @@ DATASET_TYPES = [
     "dia_object_forced_source",
     "dia_object",
     "dia_source",
+    "difference_image",
     # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types()
     # below.
     "ss_source",
@@ -48,6 +49,9 @@ DATASET_TYPES = [
     "the_monster_20250219",
     "fgcmLookUpTable",
     "skyMap",
+    "crosstalk",
+    "cti",
+    "illuminationCorrection",
 ]
 
 DEFAULT_EXPORT_DIRECTORY = "dp1-dump"
