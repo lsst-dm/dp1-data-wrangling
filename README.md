@@ -28,7 +28,7 @@ ssh s3dfdtn.slac.stanford.edu
 screen
 # Copy files to GCS
 gcloud auth login
-gcloud storage rsync --recursive --no-ignore-symlinks datastore_symlinks gs://butler-us-central1-dp1/
+gcloud storage rsync --recursive --no-ignore-symlinks datastore_symlinks gs://butler-us-central1-dp1/DM-51058
 ```
 
 Then open up an RSP notebook session in the target IDF environment, and upload the `dp1-dump.tar` file created at USDF.
