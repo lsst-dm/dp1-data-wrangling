@@ -39,6 +39,13 @@ tar -xf ~/dp1-dump.tar
 python import_preliminary_dp1.py --seed butler-configs/idfdev.yaml # or other seed depending on environment
 # Generate an ObsCore table for qserv
 butler obscore export --format csv -c ~/repos/dax_obscore/configs/dp1.yaml import-test-repo dp1.csv
+
+# On production, you need to grant the Butler server's database user access to the schema created by
+# the importer.
+pgcli -h 10.163.1.2 -U your_postgres_user_name dp1
+GRANT USAGE ON SCHEMA dm_51058 TO butler
+GRANT SELECT ON ALL TABLES IN SCHEMA dm_51058 TO butler
+ALTER DEFAULT PRIVILEGES IN SCHEMA dm_51058 GRANT SELECT ON TABLES TO butler
 ```
 
 ### Adding missing dataset types after-the-fact
