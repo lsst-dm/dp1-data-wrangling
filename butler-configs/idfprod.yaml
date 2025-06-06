@@ -1,0 +1,4 @@
+registry:
+  # AlloyDB master "butler-data-preview-stable-primary".
+  db: postgresql://10.163.1.2:5432/dp1
+  namespace: dm_51058

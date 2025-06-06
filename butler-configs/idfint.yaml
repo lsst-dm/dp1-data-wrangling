@@ -1,3 +1,3 @@
 registry:
   db: postgresql://butler@dp1.rsp-sql-int.internal:5432/dp1
-  namespace: dm_50578
+  namespace: dm_51058

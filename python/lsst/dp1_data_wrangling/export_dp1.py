@@ -28,6 +28,7 @@ DATASET_TYPES = [
     "dia_object_forced_source",
     "dia_object",
     "dia_source",
+    "difference_image",
     # 'deepCoadd_*_consolidated_map*' found in _find_extra_dataset_types()
     # below.
     "ss_source",
@@ -48,6 +49,9 @@ DATASET_TYPES = [
     "the_monster_20250219",
     "fgcmLookUpTable",
     "skyMap",
+    "crosstalk",
+    "cti",
+    "illuminationCorrection",
 ]
 
 DEFAULT_EXPORT_DIRECTORY = "dp1-dump"
@@ -62,7 +66,7 @@ def main(dataset_type: list[str], repo: str, collection: str, output_directory: 
     butler = Butler(repo)
 
     with butler.registry.caching_context():
-        dumper = Exporter(output_directory, butler)
+        dumper = Exporter(output_directory, butler, root_collection=collection)
 
         if dataset_type:
             exported_types = set(dataset_type)

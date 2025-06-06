@@ -28,7 +28,7 @@ class Importer:
         self._paths = ExportPaths(input_path)
         self._butler = butler
 
-    def import_all(self, datastore_mapping: DatastoreMappingFunction) -> None:
+    def import_all(self, datastore_mapping: DatastoreMappingFunction) -> ExportIndex:
         index = read_model_from_file(ExportIndex, self._paths.index_path())
 
         # Dataset types have to be registered outside the transaction,
@@ -43,6 +43,8 @@ class Importer:
             self._import_datasets(dataset_types)
             self._import_associations(dataset_types)
             self._import_datastore(datastore_mapping)
+
+        return index
 
     def _import_dimension_records(self, dimensions: list[str]) -> None:
         universe = self._butler.dimensions

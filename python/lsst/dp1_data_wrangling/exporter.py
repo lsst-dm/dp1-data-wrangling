@@ -26,11 +26,12 @@ MAX_ROWS_PER_WRITE = 50000
 class Exporter:
     """Export DatasetRefs with associated dimension records to parquet files"""
 
-    def __init__(self, output_path: str, butler: Butler) -> None:
+    def __init__(self, output_path: str, butler: Butler, root_collection: str) -> None:
         self._dimensions: dict[str, DimensionRecordParquetWriter] = {}
         self._butler = butler
         self._paths = ExportPaths(output_path)
         self._paths.create_directories()
+        self._root_collection = root_collection
 
         self._dataset_types_written: set[str] = set()
         self._collections_seen: set[str] = set()
@@ -128,7 +129,9 @@ class Exporter:
         export_dataset_types(self._paths.dataset_type_path(), dataset_types)
 
         index = ExportIndex(
-            dimensions=list(self._dimensions.keys()), dataset_types=list(self._dataset_types_written)
+            dimensions=list(self._dimensions.keys()),
+            dataset_types=list(self._dataset_types_written),
+            root_collection=self._root_collection,
         )
         write_model_to_file(index, self._paths.index_path())
 

@@ -6,3 +6,4 @@ import pydantic
 class ExportIndex(pydantic.BaseModel):
     dimensions: list[str]
     dataset_types: list[str]
+    root_collection: str
