@@ -28,7 +28,7 @@ ssh s3dfdtn.slac.stanford.edu
 screen
 # Copy files to GCS
 gcloud auth login
-gcloud storage rsync --recursive --no-ignore-symlinks datastore_symlinks gs://butler-us-central1-dp1/DM-51058
+gcloud storage rsync --recursive --no-ignore-symlinks datastore_symlinks gs://butler-us-central1-dp1/DM-51298
 ```
 
 Then open up an RSP notebook session in the target IDF environment, and upload the `dp1-dump.tar` file created at USDF.
@@ -43,9 +43,9 @@ butler obscore export --format csv -c ~/repos/dax_obscore/configs/dp1.yaml impor
 # On production, you need to grant the Butler server's database user access to the schema created by
 # the importer.
 pgcli -h 10.163.1.2 -U your_postgres_user_name dp1
-GRANT USAGE ON SCHEMA dm_51058 TO butler
-GRANT SELECT ON ALL TABLES IN SCHEMA dm_51058 TO butler
-ALTER DEFAULT PRIVILEGES IN SCHEMA dm_51058 GRANT SELECT ON TABLES TO butler
+GRANT USAGE ON SCHEMA dm_51298 TO butler
+GRANT SELECT ON ALL TABLES IN SCHEMA dm_51298 TO butler
+ALTER DEFAULT PRIVILEGES IN SCHEMA dm_51298 GRANT SELECT ON TABLES TO butler
 ```
 
 ### Adding missing dataset types after-the-fact

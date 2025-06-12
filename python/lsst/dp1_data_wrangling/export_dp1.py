@@ -60,7 +60,7 @@ DEFAULT_EXPORT_DIRECTORY = "dp1-dump"
 @click.command
 @click.option("--dataset-type", "-t", multiple=True, help="Override default dataset types to export")
 @click.option("--repo", default="/repo/dp1")
-@click.option("--collection", default="LSSTComCam/runs/DRP/DP1/v29_0_0/DM-50260")
+@click.option("--collection", default="LSSTComCam/DP1")
 @click.option("--output-directory", default=DEFAULT_EXPORT_DIRECTORY)
 def main(dataset_type: list[str], repo: str, collection: str, output_directory: str) -> None:
     butler = Butler(repo)
