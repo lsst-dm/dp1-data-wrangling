@@ -53,7 +53,7 @@ class Exporter:
         for record in records:
             self._add_dimension_record(record)
 
-    def did_export_dimension_records(self, dimension: str) -> str:
+    def did_export_dimension_records(self, dimension: str) -> bool:
         return dimension in self._dimensions
 
     def close_and_get_dimension_record_output_file(self, dimension: str) -> str:
