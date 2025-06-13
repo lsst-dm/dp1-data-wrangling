@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
@@ -21,19 +22,27 @@ def main(input_root: str, output_root: str) -> None:
 
     count = 0
     datastore_records_file = ExportPaths(DEFAULT_EXPORT_DIRECTORY).datastore_parquet_path()
-    for path in _generate_file_list(input_root, datastore_records_file):
-        output_path = output_dir.joinpath(path.relative_target)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            output_path.symlink_to(path.absolute_source)
-        except FileExistsError:
-            # More than one dataset may point to the same file (e.g. log
-            # files combined together in a .zip file).  So it's not an error
-            # for a file to show up more than once.
-            pass
-        count += 1
-        if (count % 10000) == 0:
-            print(count)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = []
+        for path in _generate_file_list(input_root, datastore_records_file):
+            futures.append(executor.submit(_create_symlink, output_dir, path))
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+            count += 1
+            if (count % 10000) == 0:
+                print(count)
+
+
+def _create_symlink(output_dir: Path, path: MappedPath) -> None:
+    output_path = output_dir.joinpath(path.relative_target)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        output_path.symlink_to(path.absolute_source)
+    except FileExistsError:
+        # More than one dataset may point to the same file (e.g. log
+        # files combined together in a .zip file).  So it's not an error
+        # for a file to show up more than once.
+        pass
 
 
 def _generate_file_list(datastore_root_path: str, datastore_records_file_path: str) -> Iterator[MappedPath]:
