@@ -8,6 +8,7 @@ from lsst.daf.butler import (
     Butler,
     CollectionType,
     DatasetAssociation,
+    DatasetId,
     DatasetType,
     DimensionRecord,
 )
@@ -46,14 +47,14 @@ class Exporter:
         self._collections_seen.update(collections)
 
         dataset_type = self._butler.get_dataset_type(dataset_type_name)
-        self._generate_association_output(dataset_type, collections)
-        self._generate_dataset_output(dataset_type, collections)
+        datasets = self._generate_dataset_output(dataset_type, collections)
+        self._generate_association_output(dataset_type, collections, datasets)
 
     def dump_dimension_records(self, records: Iterable[DimensionRecord]) -> None:
         for record in records:
             self._add_dimension_record(record)
 
-    def did_export_dimension_records(self, dimension: str) -> str:
+    def did_export_dimension_records(self, dimension: str) -> bool:
         return dimension in self._dimensions
 
     def close_and_get_dimension_record_output_file(self, dimension: str) -> str:
@@ -64,14 +65,28 @@ class Exporter:
         self._dimensions[dimension].finish()
         return self._paths.dimension_parquet_path(dimension)
 
-    def _generate_dataset_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
+    def _generate_dataset_output(self, dataset_type: DatasetType, collections: list[str]) -> set[DatasetId]:
         """Dump full list of datasets included in the given collections for the
         given dataset type
         """
         writer = DatasetsParquetWriter(dataset_type, self._paths.dataset_parquet_path(dataset_type.name))
+        datasets_found: set[DatasetId] = set()
+
         with self._butler.query() as query:
-            results = query.datasets(dataset_type, collections, find_first=False).with_dimension_records()
+            # There are some datasets in DP1 that were revised, with the
+            # updated version replacing an incorrect version.  We don't
+            # want to ship the broken versions, so we use find_first to pull
+            # the "best" version from the top of the collection chain.
+            #
+            # For calibrations, we need all of the datasets -- since datasets
+            # with the same data ID may be associated with different validity
+            # time ranges.
+            find_first = not dataset_type.isCalibration()
+            results = query.datasets(
+                dataset_type, collections, find_first=find_first
+            ).with_dimension_records()
             for refs in _batched(results, MAX_ROWS_PER_WRITE):
+                datasets_found.update([r.id for r in refs])
                 # Sort by data ID to improve compressibility.
                 refs.sort(key=lambda ref: ref.dataId)
                 writer.add_refs(refs)
@@ -86,9 +101,13 @@ class Exporter:
                 # these refs to a separate file.
                 datastore_records = self._butler._datastore.export_records(refs)
                 self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
-        writer.finish()
 
-    def _generate_association_output(self, dataset_type: DatasetType, collections: list[str]) -> None:
+        writer.finish()
+        return datasets_found
+
+    def _generate_association_output(
+        self, dataset_type: DatasetType, collections: list[str], datasets_to_include: set[DatasetId]
+    ) -> None:
         """Dump a list of datasets associated with tag and calibration
         collections.
         """
@@ -112,6 +131,9 @@ class Exporter:
                 )
                 associations = DatasetAssociation.from_query_result(result, dataset_type)
                 for batch in _batched(associations, MAX_ROWS_PER_WRITE):
+                    # Only export the associations in tagged collections if the
+                    # datasets are included in the release.
+                    batch = [assoc for assoc in batch if assoc.ref.id in datasets_to_include]
                     # Sort to group datasets from the same collection together,
                     # then by data ID to improve compressibility.
                     batch.sort(key=lambda association: (association.collection, association.ref.dataId))
