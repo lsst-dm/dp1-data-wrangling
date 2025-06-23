@@ -1,4 +1,4 @@
-creator_did              = ivo://org.rubinobs/lsst-dp1-r
+creator_did              = ivo://org.rubinobs/lsst-dp1?hips=band_r&type=deep_coadd
 obs_title                = LSSTComCam: DP1 r
 obs_description          = Grayscale visualization of coadded data from LSSTComCam.
 obs_regime               = Optical

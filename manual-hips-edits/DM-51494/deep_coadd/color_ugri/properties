@@ -1,4 +1,4 @@
-creator_did              = ivo://org.rubinobs/lsst-dp1-ugri
+creator_did              = ivo://org.rubinobs/lsst-dp1?hips=color_ugri&type=deep_coadd
 obs_title                = LSSTComCam: DP1 ugri
 obs_description          = Color visualization of coad ded data from LSSTComCam with a hue-preserving stretch.
 obs_regime               = Optical

@@ -1,4 +1,4 @@
-creator_did              = ivo://org.rubinobs/lsst-dp1-izy
+creator_did              = ivo://org.rubinobs/lsst-dp1?hips=color_izy&type=deep_coadd
 obs_title                = LSSTComCam: DP1 izy
 obs_description          = Color visualization of coadded data from LSSTComCam with a hue-preserving stretch.
 obs_regime               = Optical
