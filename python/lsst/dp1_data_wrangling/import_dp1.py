@@ -44,11 +44,15 @@ def main(
                 # for the repository directory so this script can be run
                 # more than once.
                 output_repo = exit_stack.enter_context(tempfile.TemporaryDirectory())
+            print("Initializing repository...")
             Butler.makeRepo(output_repo, config=config)
 
+        print("Connecting to database...")
         butler = Butler(output_repo, writeable=True)
+        print("Importing DP1 registry...")
         importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
         importer.import_all(datastore_mapping=_datastore_mapping_function)
+        print("Import complete")
 
 
 def make_datastore_path_relative(path: str) -> str:
