@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import tempfile
+from contextlib import ExitStack
 
 import click
 from lsst.daf.butler import Butler, Config
@@ -8,8 +10,6 @@ from lsst.daf.butler import Butler, Config
 from .datastore_mapping import DatastoreMappingInput
 from .export_dp1 import DEFAULT_EXPORT_DIRECTORY
 from .importer import Importer
-
-OUTPUT_REPO = "import-test-repo"
 
 
 @click.command()
@@ -25,21 +25,30 @@ def main(
     db_schema: str | None = None,
     db_connection_string: str | None = None,
 ) -> None:
-    if not use_existing_repo:
-        if seed:
-            config = Config(seed)
-        else:
-            config = Config()
-        if db_connection_string is not None:
-            assert db_schema is not None, "--db-schema is required with --db-connection-string"
-            config["registry", "db"] = db_connection_string
-        if db_schema is not None:
-            assert db_connection_string is not None, "--db-connection-string is required with --db-schema"
-            config["registry", "namespace"] = db_schema
-        Butler.makeRepo(OUTPUT_REPO, config=config)
-    butler = Butler(OUTPUT_REPO, writeable=True)
-    importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
-    importer.import_all(datastore_mapping=_datastore_mapping_function)
+    exit_stack = ExitStack()
+    with exit_stack:
+        output_repo = "import-test-repo"
+        if not use_existing_repo:
+            if seed:
+                config = Config(seed)
+            else:
+                config = Config()
+            if db_connection_string is not None:
+                assert db_schema is not None, "--db-schema is required with --db-connection-string"
+                config["registry", "db"] = db_connection_string
+            if db_schema is not None:
+                assert db_connection_string is not None, "--db-connection-string is required with --db-schema"
+                config["registry", "namespace"] = db_schema
+            if seed or db_connection_string:
+                # User manually specified a target database; use a tempdir
+                # for the repository directory so this script can be run
+                # more than once.
+                output_repo = exit_stack.enter_context(tempfile.TemporaryDirectory())
+            Butler.makeRepo(output_repo, config=config)
+
+        butler = Butler(output_repo, writeable=True)
+        importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
+        importer.import_all(datastore_mapping=_datastore_mapping_function)
 
 
 def make_datastore_path_relative(path: str) -> str:
