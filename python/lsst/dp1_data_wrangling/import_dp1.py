@@ -19,11 +19,13 @@ from .importer import Importer
 )
 @click.option("--db-schema", help="Schema name to use when creating the registry database")
 @click.option("--db-connection-string", help="Schema name to use when creating the registry database")
+@click.option("--no-datastore-remap", is_flag=True, help="Disable remapping of paths inside the datastore")
 def main(
     seed: str | None,
     use_existing_repo: bool,
-    db_schema: str | None = None,
-    db_connection_string: str | None = None,
+    no_datastore_remap: bool,
+    db_schema: str | None,
+    db_connection_string: str | None,
 ) -> None:
     exit_stack = ExitStack()
     with exit_stack:
@@ -51,7 +53,12 @@ def main(
         butler = Butler(output_repo, writeable=True)
         print("Importing DP1 registry...")
         importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
-        importer.import_all(datastore_mapping=_datastore_mapping_function)
+        if no_datastore_remap:
+            datastore_mapping = _null_datastore_mapping_function
+        else:
+            datastore_mapping = _datastore_mapping_function
+
+        importer.import_all(datastore_mapping=datastore_mapping)
         print("Import complete")
 
 
@@ -70,3 +77,7 @@ def _datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappin
     # "FileDatastore@<butlerRoot>" datastore name, so we don't need to remap
     # the datastore name.
     return input._replace(path=path)
+
+
+def _null_datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
+    return input
