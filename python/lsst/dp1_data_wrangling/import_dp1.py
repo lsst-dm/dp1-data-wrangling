@@ -17,12 +17,25 @@ OUTPUT_REPO = "import-test-repo"
 @click.option(
     "--use-existing-repo", is_flag=True, help="Use existing Butler repository instead of creating a new one"
 )
-def main(seed: str | None, use_existing_repo: bool) -> None:
+@click.option("--db-schema", help="Schema name to use when creating the registry database")
+@click.option("--db-connection-string", help="Schema name to use when creating the registry database")
+def main(
+    seed: str | None,
+    use_existing_repo: bool,
+    db_schema: str | None = None,
+    db_connection_string: str | None = None,
+) -> None:
     if not use_existing_repo:
         if seed:
             config = Config(seed)
         else:
-            config = None
+            config = Config()
+        if db_connection_string is not None:
+            assert db_schema is not None, "--db-schema is required with --db-connection-string"
+            config["registry", "db"] = db_connection_string
+        if db_schema is not None:
+            assert db_connection_string is not None, "--db-connection-string is required with --db-schema"
+            config["registry", "namespace"] = db_schema
         Butler.makeRepo(OUTPUT_REPO, config=config)
     butler = Butler(OUTPUT_REPO, writeable=True)
     importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
