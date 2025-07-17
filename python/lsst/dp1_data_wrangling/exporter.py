@@ -27,12 +27,21 @@ MAX_ROWS_PER_WRITE = 50000
 class Exporter:
     """Export DatasetRefs with associated dimension records to parquet files"""
 
-    def __init__(self, output_path: str, butler: Butler, root_collection: str) -> None:
+    def __init__(
+        self,
+        output_path: str,
+        butler: Butler,
+        root_collection: str,
+        skip_datastore: bool = False,
+        skip_associations: bool = False,
+    ) -> None:
         self._dimensions: dict[str, DimensionRecordParquetWriter] = {}
         self._butler = butler
         self._paths = ExportPaths(output_path)
         self._paths.create_directories()
         self._root_collection = root_collection
+        self._skip_datastore = skip_datastore
+        self._skip_associations = skip_associations
 
         self._dataset_types_written: set[str] = set()
         self._collections_seen: set[str] = set()
@@ -48,7 +57,8 @@ class Exporter:
 
         dataset_type = self._butler.get_dataset_type(dataset_type_name)
         datasets = self._generate_dataset_output(dataset_type, collections)
-        self._generate_association_output(dataset_type, collections, datasets)
+        if not self._skip_associations:
+            self._generate_association_output(dataset_type, collections, datasets)
 
     def dump_dimension_records(self, records: Iterable[DimensionRecord]) -> None:
         for record in records:
@@ -97,10 +107,12 @@ class Exporter:
                     for record in ref.dataId.records.values():
                         if record is not None:
                             self._add_dimension_record(record)
+
                 # Export datastore records (file paths etc) associated with
                 # these refs to a separate file.
-                datastore_records = self._butler._datastore.export_records(refs)
-                self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
+                if not self._skip_datastore:
+                    datastore_records = self._butler._datastore.export_records(refs)
+                    self._datastore_writer.write_records(datastore_records, self._butler._datastore.names)
 
         writer.finish()
         return datasets_found
