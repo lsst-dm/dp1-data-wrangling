@@ -16,12 +16,13 @@ from .paths import ExportPaths
 @click.command
 @click.option("--input-root", default="/sdf/group/rubin/repo/dp1/")
 @click.option("--output-root", default="datastore_symlinks")
-def main(input_root: str, output_root: str) -> None:
+@click.option("--export-dir", default=DEFAULT_EXPORT_DIRECTORY)
+def main(input_root: str, output_root: str, export_dir: str) -> None:
     output_dir = Path(output_root)
     output_dir.mkdir()
 
     count = 0
-    datastore_records_file = ExportPaths(DEFAULT_EXPORT_DIRECTORY).datastore_parquet_path()
+    datastore_records_file = ExportPaths(export_dir).datastore_parquet_path()
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         futures = []
         for path in _generate_file_list(input_root, datastore_records_file):
