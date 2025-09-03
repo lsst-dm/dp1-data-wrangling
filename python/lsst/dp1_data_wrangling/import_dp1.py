@@ -20,12 +20,14 @@ from .importer import Importer
 @click.option("--db-schema", help="Schema name to use when creating the registry database")
 @click.option("--db-connection-string", help="Schema name to use when creating the registry database")
 @click.option("--no-datastore-remap", is_flag=True, help="Disable remapping of paths inside the datastore")
+@click.option("--input-dir", default=DEFAULT_EXPORT_DIRECTORY)
 def main(
     seed: str | None,
     use_existing_repo: bool,
     no_datastore_remap: bool,
     db_schema: str | None,
     db_connection_string: str | None,
+    input_dir: str,
 ) -> None:
     exit_stack = ExitStack()
     with exit_stack:
@@ -52,7 +54,7 @@ def main(
         print("Connecting to database...")
         butler = Butler(output_repo, writeable=True)
         print("Importing DP1 registry...")
-        importer = Importer(DEFAULT_EXPORT_DIRECTORY, butler)
+        importer = Importer(input_dir, butler)
         if no_datastore_remap:
             datastore_mapping = _null_datastore_mapping_function
         else:
