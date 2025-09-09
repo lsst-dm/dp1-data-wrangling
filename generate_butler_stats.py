@@ -27,12 +27,7 @@ def main() -> None:
     print(by_dataset_type)
 
     fig, ax = plt.subplots(figsize=(12, 8), ncols=2)
-    wedges = list(by_dataset_type.values())
-    labels = [f"{k} ({v})" for k, v in by_dataset_type.items()]
-    ax[0].pie(wedges, labels=labels)
-    handles, labels = ax[0].get_legend_handles_labels()
-    ax[1].legend(handles, labels, loc="center right")
-    ax[1].set_axis_off()
+    plot_dataset_types(ax[0], ax[1], by_dataset_type)
     plt.show()
 
 
@@ -73,6 +68,17 @@ def find_dataset_types(search_datasets: Iterable[uuid.UUID]) -> dict[uuid.UUID, 
         print(f"No dataset type found for some datasets: {[uuid.UUID(bytes=id) for id in datasets]}")
 
     return output
+
+
+def plot_dataset_types(ax: plt.Axes, legend_ax: plt.Axes, dataset_counts: dict[str, int]) -> None:
+    dataset_counts = dict(sorted(dataset_counts.items(), key=lambda item: item[1], reverse=True))
+    wedges = list(dataset_counts.values())
+    labels = [f"{k} ({v})" for k, v in dataset_counts.items()]
+    ax.pie(wedges, labels=labels)
+    handles, labels = ax.get_legend_handles_labels()
+    legend_ax.legend(handles, labels, loc="center right")
+    legend_ax.set_axis_off()
+    plt.show()
 
 
 class FileAccess(NamedTuple):
