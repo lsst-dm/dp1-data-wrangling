@@ -8,6 +8,7 @@ from collections.abc import Iterable, Iterator
 from glob import glob
 from typing import Literal, NamedTuple
 
+import matplotlib.pyplot as plt
 from pyarrow.parquet import ParquetFile
 
 
@@ -24,6 +25,15 @@ def main() -> None:
     for id, dataset_type in dataset_type_mapping.items():
         by_dataset_type[dataset_type] += by_dataset_id[id]
     print(by_dataset_type)
+
+    fig, ax = plt.subplots(figsize=(12, 8), ncols=2)
+    wedges = list(by_dataset_type.values())
+    labels = [f"{k} ({v})" for k, v in by_dataset_type.items()]
+    ax[0].pie(wedges, labels=labels)
+    handles, labels = ax[0].get_legend_handles_labels()
+    ax[1].legend(handles, labels, loc="center right")
+    ax[1].set_axis_off()
+    plt.show()
 
 
 def find_file_accesses() -> Iterator[FileAccess]:
