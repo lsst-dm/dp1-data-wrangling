@@ -26,6 +26,9 @@ from .importer import Importer
     default="rsp",
 )
 @click.option("--input-dir", default=DEFAULT_EXPORT_DIRECTORY)
+@click.option(
+    "--dataset-type", "-t", multiple=True, help="Subset the imported data to only the given dataset type"
+)
 def main(
     seed: str | None,
     use_existing_repo: bool,
@@ -34,6 +37,7 @@ def main(
     db_connection_string: str | None,
     input_dir: str,
     file_paths: str,
+    dataset_type: list[str] | None,
 ) -> None:
     exit_stack = ExitStack()
     with exit_stack:
@@ -60,7 +64,9 @@ def main(
         print("Connecting to database...")
         butler = Butler(output_repo, writeable=True)
         print("Importing DP1 registry...")
-        importer = Importer(input_dir, butler)
+        if not dataset_type:
+            dataset_type = None
+        importer = Importer(input_dir, butler, dataset_type)
         if no_datastore_remap:
             datastore_mapping = _null_datastore_mapping_function
         elif file_paths == "rsp":

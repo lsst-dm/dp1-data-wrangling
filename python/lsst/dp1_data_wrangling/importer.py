@@ -6,6 +6,7 @@ from lsst.daf.butler import (
     Butler,
     CollectionType,
     DatasetAssociation,
+    DatasetId,
     DatasetRef,
     DatasetType,
 )
@@ -24,25 +25,34 @@ from .utils import read_model_from_file
 
 
 class Importer:
-    def __init__(self, input_path: str, butler: Butler) -> None:
+    def __init__(self, input_path: str, butler: Butler, dataset_types: list[str] | None) -> None:
         self._paths = ExportPaths(input_path)
         self._butler = butler
+        self._dataset_types = dataset_types
 
     def import_all(self, datastore_mapping: DatastoreMappingFunction) -> ExportIndex:
         index = read_model_from_file(ExportIndex, self._paths.index_path())
 
+        if self._dataset_types:
+            unknown_dataset_types = set(self._dataset_types) - set(index.dataset_types)
+            if unknown_dataset_types:
+                raise ValueError(f"Unknown dataset type names specified: {unknown_dataset_types}")
+        else:
+            self._dataset_types = index.dataset_types
+
         # Dataset types have to be registered outside the transaction,
         # because registering them creates tables.
         dataset_types = import_dataset_types(self._paths.dataset_type_path(), self._butler.dimensions)
+        dataset_types = [dt for dt in dataset_types if dt.name in self._dataset_types]
         for dt in dataset_types:
             self._butler.registry.registerDatasetType(dt)
 
         with self._butler.transaction():
             self._butler.import_(filename=self._paths.collections_path())
             self._import_dimension_records(index.dimensions)
-            self._import_datasets(dataset_types)
+            imported_datasets = self._import_datasets(dataset_types)
             self._import_associations(dataset_types)
-            self._import_datastore(datastore_mapping)
+            self._import_datastore(datastore_mapping, imported_datasets)
 
         return index
 
@@ -60,15 +70,19 @@ class Importer:
                 for table in read_dimension_records_from_file(element, path):
                     self._butler.registry.insertDimensionData(element, *list(table), skip_existing=True)
 
-    def _import_datasets(self, dataset_types: list[DatasetType]) -> None:
+    def _import_datasets(self, dataset_types: list[DatasetType]) -> set[DatasetId]:
+        imported_datasets: set[DatasetId] = set()
+
         for dt in dataset_types:
             path = self._paths.dataset_parquet_path(dt.name)
             for batch in read_dataset_refs_from_file(dt, path):
                 # _importDatasets can only import refs from one run at a time,
                 # so chunk by run.
                 for run, refs in groupby(sorted(batch, key=_get_run), _get_run):
+                    ref_list = list(refs)
+                    imported_datasets.update(ref.id for ref in ref_list)
                     self._butler.registry._importDatasets(
-                        refs,
+                        ref_list,
                         # Setting expand=False will break things if "live
                         # ObsCore" is enabled, but expand=True is unacceptably
                         # slow because it generates a query for every single
@@ -81,6 +95,8 @@ class Importer:
                         # ObsCore to work without the queries.
                         expand=False,
                     )
+
+        return imported_datasets
 
     def _import_associations(self, dataset_types: list[DatasetType]) -> None:
         for dt in dataset_types:
@@ -100,9 +116,12 @@ class Importer:
                             f" when importing associations for dataset type '{dt.name}'"
                         )
 
-    def _import_datastore(self, datastore_mapping: DatastoreMappingFunction) -> None:
+    def _import_datastore(
+        self, datastore_mapping: DatastoreMappingFunction, imported_datasets: set[DatasetId]
+    ) -> None:
         mapper = DatastoreMapper(datastore_mapping, self._butler._datastore)
         for batch in read_datastore_records_from_file(self._paths.datastore_parquet_path()):
+            batch = [row for row in batch if row.dataset_id in imported_datasets]
             records = mapper.map_to_target(batch)
             self._butler._datastore.import_records(records)
 
