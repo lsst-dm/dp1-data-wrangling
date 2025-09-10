@@ -26,8 +26,11 @@ def main() -> None:
         by_dataset_type[dataset_type] += by_dataset_id[id]
     print(by_dataset_type)
 
-    fig, ax = plt.subplots(figsize=(12, 8), ncols=2)
-    plot_dataset_types(ax[0], ax[1], by_dataset_type)
+    fig, (ax1, ax2) = plt.subplots(figsize=(12, 12), nrows=2, ncols=2)
+    plot_dataset_types(ax1[0], ax1[1], by_dataset_type)
+    plot_count_histogram(ax2[0], by_dataset_id)
+    ax2[1].set_axis_off()
+
     plt.show()
 
 
@@ -78,7 +81,17 @@ def plot_dataset_types(ax: plt.Axes, legend_ax: plt.Axes, dataset_counts: dict[s
     handles, labels = ax.get_legend_handles_labels()
     legend_ax.legend(handles, labels, loc="center right")
     legend_ax.set_axis_off()
-    plt.show()
+
+
+def plot_count_histogram(ax: plt.Axes, dataset_counts: dict[uuid.UUID, int]) -> None:
+    sorted_counts = dict(sorted(dataset_counts.items(), key=lambda item: item[1], reverse=True))
+    ax.hist(
+        dataset_counts.values(), bins=50
+    )  # , bins=[0, 5, 25, 100, 500, 1000, max(dataset_counts.values()) + 1])
+    ax.set_yscale("log")
+    ax.set_xlabel("Download count")
+    ax.set_ylabel("Number of datasets")
+    # ax.set_xscale("log")
 
 
 class FileAccess(NamedTuple):
