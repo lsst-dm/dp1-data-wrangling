@@ -9,7 +9,7 @@ import click
 
 from .datastore_parquet import read_datastore_records_from_file
 from .export_dp1 import DEFAULT_EXPORT_DIRECTORY
-from .import_dp1 import make_datastore_path_relative
+from .import_dp1 import map_datastore_path_for_rsp
 from .paths import ExportPaths
 
 
@@ -51,7 +51,7 @@ def _generate_file_list(datastore_root_path: str, datastore_records_file_path: s
         for row in batch:
             original_path = row.file_info.path
             absolute_path = _make_path_absolute(datastore_root_path, original_path)
-            target_path = _strip_fragment(make_datastore_path_relative(original_path))
+            target_path = _strip_fragment(map_datastore_path_for_rsp(original_path))
             yield MappedPath(absolute_source=absolute_path, relative_target=target_path)
 
 
