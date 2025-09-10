@@ -85,6 +85,9 @@ def plot_dataset_types(ax: plt.Axes, legend_ax: plt.Axes, dataset_counts: dict[s
 
 def plot_count_histogram(ax: plt.Axes, dataset_counts: dict[uuid.UUID, int]) -> None:
     sorted_counts = dict(sorted(dataset_counts.items(), key=lambda item: item[1], reverse=True))
+    print(f"Max: {max(sorted_counts.values())}")
+    for min_count in (100, 10):
+        print(f">{min_count}: {len([x for x in sorted_counts.values() if x >= min_count])}")
     ax.hist(
         dataset_counts.values(), bins=50
     )  # , bins=[0, 5, 25, 100, 500, 1000, max(dataset_counts.values()) + 1])
