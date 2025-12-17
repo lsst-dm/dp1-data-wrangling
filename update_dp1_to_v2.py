@@ -1,3 +1,7 @@
+import os
+import tempfile
+import tarfile
+
 import click
 
 from lsst.daf.butler import Butler, CollectionType
@@ -6,18 +10,16 @@ from lsst.dp1_data_wrangling.import_dp1 import do_import
 
 @click.command()
 @click.argument("butler_repo")
-@click.argument("input_dir")
 @click.option(
     "--file_paths",
     help="Selects the directory layout to use for the imported files."
     " Options are 'no-remap', 'rsp' or 'rucio'",
     default="rsp",
 )
-def main(butler_repo: str, input_dir: str, file_paths: str) -> None:
+def main(butler_repo: str, file_paths: str) -> None:
     butler = Butler.from_config(butler_repo, writeable=True)
     with butler.transaction():
-        do_import(input_dir, butler, ["visit_image", "difference_image"], file_paths)
-
+        _import_new_datasets(butler, file_paths)
         # set up tagged collection for coadds from previous fixup.
         # This allows us to keep "bad" images out of the main collection chain,
         # instead of relying on users to always use find-first searches.
@@ -42,7 +44,7 @@ def main(butler_repo: str, input_dir: str, file_paths: str) -> None:
         butler.registry.registerCollection(
             v1_collection_name, CollectionType.CHAINED, "Original release of DP1"
         )
-        butler.collection_chains.redefine_chain(
+        butler.collections.redefine_chain(
             v1_collection_name,
             ("LSSTComCam/runs/DRP/DP1/DM-51335", *common_collections),
         )
@@ -61,6 +63,16 @@ def main(butler_repo: str, input_dir: str, file_paths: str) -> None:
         )
         butler.collections.redefine_chain(v2_collection_name, v2_collections)
         butler.collections.redefine_chain("LSSTComCam/DP1", v2_collections)
+
+
+def _import_new_datasets(butler: Butler, file_paths: str) -> None:
+    with tempfile.TemporaryDirectory() as tempdir:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        update_file = os.path.join(script_dir, "DM-53654.tar.gz")
+        with tarfile.open(update_file, "r:*") as tar:
+            tar.extractall(tempdir, filter="data")
+        input_dir = os.path.join(tempdir, "DM-53654")
+        do_import(input_dir, butler, ["visit_image", "difference_image"], file_paths)
 
 
 if __name__ == "__main__":
