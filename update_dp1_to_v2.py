@@ -14,10 +14,8 @@ from lsst.dp1_data_wrangling.import_dp1 import do_import
     default="rsp",
 )
 def main(butler_repo: str, input_dir: str, file_paths: str) -> None:
-    with (
-        Butler.from_config(butler_repo, writeable=True) as butler,
-        butler.transaction(),
-    ):
+    butler = Butler.from_config(butler_repo, writeable=True)
+    with butler.transaction():
         do_import(input_dir, butler, ["visit_image", "difference_image"], file_paths)
 
         # set up tagged collection for coadds from previous fixup.
