@@ -63,3 +63,7 @@ def main(butler_repo: str, input_dir: str, file_paths: str) -> None:
         )
         butler.collections.redefine_chain(v2_collection_name, v2_collections)
         butler.collections.redefine_chain("LSSTComCam/DP1", v2_collections)
+
+
+if __name__ == "__main__":
+    main()
