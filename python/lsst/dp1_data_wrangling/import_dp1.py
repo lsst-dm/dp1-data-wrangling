@@ -13,13 +13,26 @@ from .importer import Importer
 
 
 @click.command()
-@click.option("--seed", help="Butler seed configuration file to use when creating repository")
 @click.option(
-    "--use-existing-repo", is_flag=True, help="Use existing Butler repository instead of creating a new one"
+    "--seed", help="Butler seed configuration file to use when creating repository"
 )
-@click.option("--db-schema", help="Schema name to use when creating the registry database")
-@click.option("--db-connection-string", help="Schema name to use when creating the registry database")
-@click.option("--no-datastore-remap", is_flag=True, help="Disable remapping of paths inside the datastore")
+@click.option(
+    "--use-existing-repo",
+    is_flag=True,
+    help="Use existing Butler repository instead of creating a new one",
+)
+@click.option(
+    "--db-schema", help="Schema name to use when creating the registry database"
+)
+@click.option(
+    "--db-connection-string",
+    help="Schema name to use when creating the registry database",
+)
+@click.option(
+    "--no-datastore-remap",
+    is_flag=True,
+    help="Disable remapping of paths inside the datastore",
+)
 @click.option(
     "--file-paths",
     help="Selects the directory layout to use for the imported files.  Options are 'rsp' or 'rucio'",
@@ -27,7 +40,10 @@ from .importer import Importer
 )
 @click.option("--input-dir", default=DEFAULT_EXPORT_DIRECTORY)
 @click.option(
-    "--dataset-type", "-t", multiple=True, help="Subset the imported data to only the given dataset type"
+    "--dataset-type",
+    "-t",
+    multiple=True,
+    help="Subset the imported data to only the given dataset type",
 )
 def main(
     seed: str | None,
@@ -48,10 +64,14 @@ def main(
             else:
                 config = Config()
             if db_connection_string is not None:
-                assert db_schema is not None, "--db-schema is required with --db-connection-string"
+                assert db_schema is not None, (
+                    "--db-schema is required with --db-connection-string"
+                )
                 config["registry", "db"] = db_connection_string
             if db_schema is not None:
-                assert db_connection_string is not None, "--db-connection-string is required with --db-schema"
+                assert db_connection_string is not None, (
+                    "--db-connection-string is required with --db-schema"
+                )
                 config["registry", "namespace"] = db_schema
             if seed or db_connection_string:
                 # User manually specified a target database; use a tempdir
@@ -66,18 +86,26 @@ def main(
         print("Importing DP1 registry...")
         if not dataset_type:
             dataset_type = None
-        importer = Importer(input_dir, butler, dataset_type)
         if no_datastore_remap:
-            datastore_mapping = _null_datastore_mapping_function
-        elif file_paths == "rsp":
-            datastore_mapping = _rsp_datastore_mapping_function
-        elif file_paths == "rucio":
-            datastore_mapping = _rucio_datastore_mapping_function
-        else:
-            raise ValueError(f"Unknown value for --file-paths: {file_paths}")
-
-        importer.import_all(datastore_mapping=datastore_mapping)
+            file_paths = "no_remap"
+        do_import(input_dir, butler, dataset_type, file_paths)
         print("Import complete")
+
+
+def do_import(
+    input_dir: str, butler: Butler, dataset_types: list[str] | None, file_paths: str
+) -> None:
+    importer = Importer(input_dir, butler, dataset_types)
+    if file_paths == "no_remap":
+        datastore_mapping = _null_datastore_mapping_function
+    elif file_paths == "rsp":
+        datastore_mapping = _rsp_datastore_mapping_function
+    elif file_paths == "rucio":
+        datastore_mapping = _rucio_datastore_mapping_function
+    else:
+        raise ValueError(f"Unknown value for --file-paths: {file_paths}")
+
+    importer.import_all(datastore_mapping=datastore_mapping)
 
 
 _EXTERNAL_FILES_PREFIX = "file:///sdf/data/rubin/"
@@ -95,7 +123,9 @@ def map_datastore_path_for_rsp(path: str) -> str:
     return path
 
 
-def _rsp_datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
+def _rsp_datastore_mapping_function(
+    input: DatastoreMappingInput,
+) -> DatastoreMappingInput:
     path = map_datastore_path_for_rsp(input.path)
     # /repo/main and target repo both use the default
     # "FileDatastore@<butlerRoot>" datastore name, so we don't need to remap
@@ -103,7 +133,9 @@ def _rsp_datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMa
     return input._replace(path=path)
 
 
-def _rucio_datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
+def _rucio_datastore_mapping_function(
+    input: DatastoreMappingInput,
+) -> DatastoreMappingInput:
     path = input.path
 
     raw_prefix = _EXTERNAL_FILES_PREFIX + "lsstdata/offline/instrument/"
@@ -118,5 +150,7 @@ def _rucio_datastore_mapping_function(input: DatastoreMappingInput) -> Datastore
     return input._replace(path=path)
 
 
-def _null_datastore_mapping_function(input: DatastoreMappingInput) -> DatastoreMappingInput:
+def _null_datastore_mapping_function(
+    input: DatastoreMappingInput,
+) -> DatastoreMappingInput:
     return input
