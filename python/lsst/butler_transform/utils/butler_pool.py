@@ -16,11 +16,12 @@ class ButlerPool:
         for butler in self._butlers:
             butler.close()
 
+    @staticmethod
     @asynccontextmanager
-    async def from_config(self, repo: str) -> AsyncIterator[ButlerPool]:
+    async def from_config(repo: str, max_connections: int) -> AsyncIterator[ButlerPool]:
         root_butler = await asyncio.to_thread(Butler.from_config, repo)
         try:
-            pool = ButlerPool(root_butler)
+            pool = ButlerPool(root_butler, max_connections)
             yield pool
         finally:
             await asyncio.to_thread(pool._close)
