@@ -33,7 +33,7 @@ class ButlerPool:
             if self._butlers:
                 butler = self._butlers.pop()
             else:
-                butler = asyncio.to_thread(self._root_butler.clone)
+                butler = await asyncio.to_thread(self._root_butler.clone)
 
             try:
                 yield butler

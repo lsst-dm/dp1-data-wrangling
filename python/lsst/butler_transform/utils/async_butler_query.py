@@ -38,7 +38,7 @@ def _run_query_sync[T](
     butler: Butler,
     query_func: SyncButlerQueryFunction,
     queue: _SyncQueueAdapter[Iterable[DatasetRef]],
-) -> AsyncIterator[T]:
+) -> None:
     try:
         with butler.query() as query:
             results = query_func(query)
@@ -58,7 +58,7 @@ class _SyncQueueAdapter[T]:
         self._loop = asyncio.get_event_loop()
 
     def put(self, item: T) -> None:
-        asyncio.run_coroutine_threadsafe(self._queue.put(item), self._loop).result()
+        asyncio.run_coroutine_threadsafe(self.queue.put(item), self._loop).result()
 
     def shutdown(self) -> None:
-        asyncio.run_coroutine_threadsafe(self._queue.shutdown(), self._loop).result()
+        self._loop.call_soon_threadsafe(self.queue.shutdown)
