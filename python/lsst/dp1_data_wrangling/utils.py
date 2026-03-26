@@ -22,5 +22,7 @@ def read_model_from_file(model_class: type[_T], input_file: str) -> _T:
 
 
 def convert_parquet_uuid_to_dataset_id(dataset_id_binary: object) -> DatasetId:
-    assert isinstance(dataset_id_binary, bytes), "Dataset ID expected to be serialized as binary bytes."
+    assert isinstance(dataset_id_binary, bytes), (
+        f"Dataset ID expected to be serialized as binary bytes, got {type(dataset_id_binary)}"
+    )
     return DatasetId(bytes=dataset_id_binary)

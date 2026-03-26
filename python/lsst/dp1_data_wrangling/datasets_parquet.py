@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 
 import pyarrow
 import pyarrow.types
 from lsst.daf.butler import (
     DatasetAssociation,
+    DatasetId,
     DatasetRef,
     DatasetType,
     DimensionGroup,
@@ -18,7 +20,7 @@ from .utils import convert_parquet_uuid_to_dataset_id
 
 
 class DatasetsParquetWriter:
-    def __init__(self, dataset_type: DatasetType, output_file: str) -> None:
+    def __init__(self, dataset_type: DatasetType, output_file: str | Path) -> None:
         self._schema = _create_dataset_arrow_schema(dataset_type, [])
         self._writer = ParquetWriter(output_file, self._schema)
 
@@ -31,9 +33,26 @@ class DatasetsParquetWriter:
         self._writer.close()
 
 
-def read_dataset_refs_from_file(dataset_type: DatasetType, input_file: str) -> Iterator[list[DatasetRef]]:
+def read_dataset_refs_from_file(
+    dataset_type: DatasetType, input_file: str
+) -> Iterator[list[DatasetRef]]:
     for batch in _read_rows_from_parquet(input_file):
         yield [_convert_row_to_ref(dataset_type, row) for row in batch]
+
+
+def read_dataset_ids_from_file(
+    input_file: str | Path, batch_size: int
+) -> Iterator[list[DatasetId]]:
+    reader = ParquetFile(input_file)
+    column_name = "dataset_id"
+    try:
+        for batch in reader.iter_batches(batch_size=batch_size, columns=[column_name]):
+            yield [
+                convert_parquet_uuid_to_dataset_id(id.as_py())
+                for id in batch.column(column_name)
+            ]
+    finally:
+        reader.close()
 
 
 class DatasetAssociationParquetWriter:
@@ -42,7 +61,9 @@ class DatasetAssociationParquetWriter:
             dataset_type,
             [
                 pyarrow.field(
-                    "collection", pyarrow.dictionary(pyarrow.int32(), pyarrow.string()), nullable=False
+                    "collection",
+                    pyarrow.dictionary(pyarrow.int32(), pyarrow.string()),
+                    nullable=False,
                 ),
                 pyarrow.field("timespan", TimespanArrowType(), nullable=True),
             ],
@@ -50,7 +71,9 @@ class DatasetAssociationParquetWriter:
         self._writer = ParquetWriter(output_file, self._schema)
 
     def add_associations(self, associations: Iterable[DatasetAssociation]) -> None:
-        rows = [_convert_association_to_row(association) for association in associations]
+        rows = [
+            _convert_association_to_row(association) for association in associations
+        ]
         batch = pyarrow.RecordBatch.from_pylist(rows, schema=self._schema)
         self._writer.write(batch)
 
@@ -79,14 +102,23 @@ def _convert_association_to_row(association: DatasetAssociation) -> dict[str, ob
     return row
 
 
-def _convert_row_to_association(dataset_type: DatasetType, row: dict[str, object]) -> DatasetAssociation:
+def _convert_row_to_association(
+    dataset_type: DatasetType, row: dict[str, object]
+) -> DatasetAssociation:
     ref = _convert_row_to_ref(dataset_type, row)
     timespan = row["timespan"]
     return DatasetAssociation(ref, row["collection"], timespan)
 
 
-def _convert_row_to_ref(dataset_type: DatasetType, row: dict[str, object]) -> DatasetRef:
-    return DatasetRef(dataset_type, row, row["run"], id=convert_parquet_uuid_to_dataset_id(row["dataset_id"]))
+def _convert_row_to_ref(
+    dataset_type: DatasetType, row: dict[str, object]
+) -> DatasetRef:
+    return DatasetRef(
+        dataset_type,
+        row,
+        row["run"],
+        id=convert_parquet_uuid_to_dataset_id(row["dataset_id"]),
+    )
 
 
 def _create_dataset_arrow_schema(
@@ -94,7 +126,9 @@ def _create_dataset_arrow_schema(
 ) -> pyarrow.Schema:
     fields = [
         pyarrow.field("dataset_id", pyarrow.binary(16), nullable=False),
-        pyarrow.field("run", pyarrow.dictionary(pyarrow.int32(), pyarrow.string()), nullable=False),
+        pyarrow.field(
+            "run", pyarrow.dictionary(pyarrow.int32(), pyarrow.string()), nullable=False
+        ),
         *_get_data_id_column_schemas(dataset_type.dimensions),
         *additional_columns,
     ]
@@ -118,7 +152,11 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
 
 def _convert_timespan_to_dict(value: Timespan | None) -> dict[str, int] | None:
     # Convert Timespan to a representation that pyarrow understands.
-    return {"begin_nsec": value.nsec[0], "end_nsec": value.nsec[1]} if value is not None else None
+    return (
+        {"begin_nsec": value.nsec[0], "end_nsec": value.nsec[1]}
+        if value is not None
+        else None
+    )
 
 
 def _read_rows_from_parquet(input_file: str) -> Iterator[list[dict[str, object]]]:
