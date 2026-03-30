@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
+
 import asyncio
+import enum
+
+
+class _QueueFinishedSentinel(enum.Enum):
+    FINISHED = 1
 
 
 class ProduceConsumeQueue[T]:
@@ -54,16 +60,29 @@ class ProduceConsumeQueue[T]:
 
     async def consume_iter(self) -> AsyncIterator[T]:
         while True:
-            try:
-                yield await self._queue.get()
-            except asyncio.QueueShutDown:
-                if self._aborted:
-                    raise QueueAbortedError(
-                        "consume_iter() canceled because queue aborted."
-                    )
-                else:
-                    # Producer finished, so there is nothing else to read.
-                    return
+            result = await self._consume_one()
+            if result == _QueueFinishedSentinel.FINISHED:
+                return
+            yield result
+
+    async def _consume_one(self) -> T | _QueueFinishedSentinel:
+        try:
+            return await self._queue.get()
+        except asyncio.QueueShutDown:
+            if self._aborted:
+                raise QueueAbortedError("consume canceled because queue aborted.")
+            else:
+                # Producer finished, so there is nothing else to read.
+                return _QueueFinishedSentinel.FINISHED
+
+    def consume_iter_sync(self) -> Iterator[T]:
+        while True:
+            result = asyncio.run_coroutine_threadsafe(
+                self._consume_one(), self._loop
+            ).result()
+            if result == _QueueFinishedSentinel.FINISHED:
+                return
+            yield result
 
 
 class QueueAbortedError(Exception):
