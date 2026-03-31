@@ -40,19 +40,24 @@ def read_dataset_refs_from_file(
         yield [_convert_row_to_ref(dataset_type, row) for row in batch]
 
 
-def read_dataset_ids_from_file(
-    input_file: str | Path, batch_size: int
-) -> Iterator[list[DatasetId]]:
-    reader = ParquetFile(input_file)
-    column_name = "dataset_id"
-    try:
-        for batch in reader.iter_batches(batch_size=batch_size, columns=[column_name]):
+class DatasetIdParquetReader:
+    _column_name = "dataset_id"
+
+    def __init__(self, input_file: str | Path, batch_size: int) -> None:
+        self._reader = ParquetFile(input_file)
+        self._batch_size = batch_size
+
+    def read_batches(self) -> Iterator[list[DatasetId]]:
+        for batch in self._reader.iter_batches(
+            batch_size=self._batch_size, columns=[self._column_name]
+        ):
             yield [
                 convert_parquet_uuid_to_dataset_id(id.as_py())
-                for id in batch.column(column_name)
+                for id in batch.column(self._column_name)
             ]
-    finally:
-        reader.close()
+
+    def close(self) -> None:
+        self._reader.close()
 
 
 class DatasetAssociationParquetWriter:

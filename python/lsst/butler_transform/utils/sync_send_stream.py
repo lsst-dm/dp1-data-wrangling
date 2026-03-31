@@ -7,8 +7,8 @@ from typing import Any
 
 
 class SyncSendStream[T](AbstractContextManager):
-    """Wraps `anyio.ObjectSendStream` for use in a function running outside the
-    event loop in a separate thread.
+    """Wraps `anyio.ObjectSendStream` for use in a sync function running
+    outside the event loop in a separate thread.
     """
 
     def __init__(self, stream: MemoryObjectSendStream[T]) -> None:

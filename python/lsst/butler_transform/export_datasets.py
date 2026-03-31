@@ -13,10 +13,13 @@ from collections.abc import Collection, Iterable, Mapping
 from lsst.daf.butler import DatasetRef, DatasetType, DatasetId, Butler
 from lsst.daf.butler.registry.interfaces import FakeDatasetRef
 from lsst.daf.butler.datastore.record_data import DatastoreRecordData
+from python.lsst.butler_transform.utils.sync_iterators import (
+    transfer_sync_iterator_to_stream,
+)
 from .utils.sync_send_stream import SyncSendStream
 from ..dp1_data_wrangling.datasets_parquet import (
+    DatasetIdParquetReader,
     DatasetsParquetWriter,
-    read_dataset_ids_from_file,
 )
 from ..dp1_data_wrangling.datastore_parquet import DatastoreParquetWriter
 from .utils.butler_pool import ButlerPool
@@ -57,10 +60,9 @@ async def export_datasets(
             Iterable[DatasetId]
         ]()
         tg.start_soon(
-            to_thread.run_sync,
             _read_back_dataset_ids,
             dataset_path,
-            SyncSendStream(dataset_id_send),
+            dataset_id_send,
         )
 
         # Look up datastore records associated with the datasets.
@@ -108,18 +110,20 @@ async def _write_datasets_to_parquet(
         )
         try:
             async for refs in input:
-                print(f"{dataset_type}: {len(refs)}")
+                print(f"{dataset_type}: {len(refs)} datasets")
                 await to_thread.run_sync(writer.add_refs, refs)
         finally:
             await to_thread.run_sync(writer.finish)
 
 
-def _read_back_dataset_ids(
-    dataset_file: Path, output: SyncSendStream[Collection[DatasetId]]
+async def _read_back_dataset_ids(
+    dataset_file: Path, output: ObjectSendStream[Collection[DatasetId]]
 ) -> None:
-    with output:
-        for batch in read_dataset_ids_from_file(dataset_file, 50_000):
-            output.send(batch)
+    reader = await to_thread.run_sync(DatasetIdParquetReader, dataset_file, 50_000)
+    try:
+        await transfer_sync_iterator_to_stream(reader.read_batches, output)
+    finally:
+        await to_thread.run_sync(reader.close)
 
 
 async def _fetch_datastore_records(
