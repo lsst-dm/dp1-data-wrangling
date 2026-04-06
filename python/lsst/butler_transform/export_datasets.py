@@ -17,11 +17,9 @@ from python.lsst.butler_transform.utils.sync_iterators import (
     transfer_sync_iterator_to_stream,
 )
 from .utils.sync_send_stream import SyncSendStream
-from ..dp1_data_wrangling.datasets_parquet import (
-    DatasetIdParquetReader,
-    DatasetsParquetWriter,
-)
-from ..dp1_data_wrangling.datastore_parquet import DatastoreParquetWriter
+from .parquet.datasets import DatasetsParquetWriter
+from .parquet.datastore import DatastoreParquetWriter
+from ..dp1_data_wrangling.datasets_parquet import DatasetIdParquetReader
 from .utils.butler_pool import ButlerPool
 
 type ButlerDatastoreRecords = Mapping[str, DatastoreRecordData]
@@ -104,16 +102,10 @@ async def _write_datasets_to_parquet(
     dataset_type: DatasetType,
     output_path: Path,
 ) -> None:
-    async with input:
-        writer = await to_thread.run_sync(
-            DatasetsParquetWriter, dataset_type, output_path
-        )
-        try:
-            async for refs in input:
-                print(f"{dataset_type}: {len(refs)} datasets")
-                await to_thread.run_sync(writer.add_refs, refs)
-        finally:
-            await to_thread.run_sync(writer.finish)
+    async with input, DatasetsParquetWriter(output_path, dataset_type) as writer:
+        async for refs in input:
+            print(f"{dataset_type}: {len(refs)} datasets")
+            await writer.add_refs(refs)
 
 
 async def _read_back_dataset_ids(
@@ -158,10 +150,6 @@ async def _fetch_datastore_record_batch(
 async def _write_datastore_records(
     output_file: Path, input: ObjectReceiveStream[ButlerDatastoreRecords]
 ) -> None:
-    async with input:
-        writer = DatastoreParquetWriter(output_file)
-        try:
-            async for records in input:
-                await to_thread.run_sync(writer.write_records, records)
-        finally:
-            await to_thread.run_sync(writer.finish)
+    async with input, DatastoreParquetWriter(output_file) as writer:
+        async for records in input:
+            await writer.write_records(records)

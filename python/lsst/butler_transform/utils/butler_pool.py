@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from lsst.daf.butler import Butler
 import asyncio
-from anyio import to_thread
+from anyio import to_thread, CancelScope
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
@@ -26,8 +26,9 @@ class ButlerPool:
             pool = ButlerPool(root_butler, max_connections)
             yield pool
         finally:
-            await to_thread.run_sync(pool._close)
-            await to_thread.run_sync(root_butler.close)
+            with CancelScope(shield=True):
+                await to_thread.run_sync(pool._close)
+                await to_thread.run_sync(root_butler.close)
 
     @asynccontextmanager
     async def get_butler(self) -> AsyncIterator[Butler]:
