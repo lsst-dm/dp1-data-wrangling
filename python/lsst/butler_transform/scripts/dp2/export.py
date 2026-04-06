@@ -50,6 +50,8 @@ EXPORTED_DATASET_TYPES = (
     "fgcmLookUpTable",
     "skyMap",
     "standard_passband",
+    # Provenance
+    "*_metadata",
 )
 
 COLLECTIONS = (

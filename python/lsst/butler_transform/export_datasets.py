@@ -62,7 +62,7 @@ async def export_datasets(
         # Look up datastore records associated with the datasets.
         datastore_records_send, datastore_records_recv = create_memory_object_stream[
             ButlerDatastoreRecords
-        ]()
+        ](2)
         tg.start_soon(
             _fetch_datastore_records,
             butler_pool,
@@ -118,27 +118,23 @@ async def _fetch_datastore_records(
     output: ObjectSendStream[ButlerDatastoreRecords],
 ) -> None:
     async with input, output, create_task_group() as tg:
-        # Limit concurrency to make sure we don't exhaust memory if
-        # DB reads are faster than output writing.
-        limiter = CapacityLimiter(butler_pool.max_connections)
         async for dataset_ids in input:
             await tg.start(
-                _fetch_datastore_record_batch, butler_pool, limiter, dataset_ids, output
+                _fetch_datastore_record_batch, butler_pool, dataset_ids, output
             )
 
 
 async def _fetch_datastore_record_batch(
     butler_pool: ButlerPool,
-    limiter: CapacityLimiter,
     dataset_ids: Iterable[DatasetId],
     output: ObjectSendStream[ButlerDatastoreRecords],
     task_status: TaskStatus,
 ) -> None:
     refs = [FakeDatasetRef(id) for id in dataset_ids]
-    async with limiter, butler_pool.get_butler() as butler:
+    async with butler_pool.get_butler() as butler:
         task_status.started()
         records = await to_thread.run_sync(butler._datastore.export_records, refs)
-    await output.send(records)
+        await output.send(records)
 
 
 async def _write_datastore_records(
