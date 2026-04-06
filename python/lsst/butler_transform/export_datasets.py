@@ -13,13 +13,9 @@ from collections.abc import Collection, Iterable, Mapping
 from lsst.daf.butler import DatasetRef, DatasetType, DatasetId, Butler
 from lsst.daf.butler.registry.interfaces import FakeDatasetRef
 from lsst.daf.butler.datastore.record_data import DatastoreRecordData
-from python.lsst.butler_transform.utils.sync_iterators import (
-    transfer_sync_iterator_to_stream,
-)
 from .utils.sync_send_stream import SyncSendStream
-from .parquet.datasets import DatasetsParquetWriter
+from .parquet.datasets import DatasetsParquetWriter, read_dataset_ids
 from .parquet.datastore import DatastoreParquetWriter
-from ..dp1_data_wrangling.datasets_parquet import DatasetIdParquetReader
 from .utils.butler_pool import ButlerPool
 
 type ButlerDatastoreRecords = Mapping[str, DatastoreRecordData]
@@ -111,11 +107,9 @@ async def _write_datasets_to_parquet(
 async def _read_back_dataset_ids(
     dataset_file: Path, output: ObjectSendStream[Collection[DatasetId]]
 ) -> None:
-    reader = await to_thread.run_sync(DatasetIdParquetReader, dataset_file, 50_000)
-    try:
-        await transfer_sync_iterator_to_stream(reader.read_batches, output)
-    finally:
-        await to_thread.run_sync(reader.close)
+    async with output:
+        async for batch in read_dataset_ids(dataset_file):
+            await output.send(batch)
 
 
 async def _fetch_datastore_records(

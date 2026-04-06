@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import pyarrow
 from pathlib import Path
-from collections.abc import Iterable
-from lsst.daf.butler import DatasetType, DimensionGroup, DatasetRef
+from collections.abc import AsyncIterator, Iterable
+from lsst.daf.butler import DatasetType, DimensionGroup, DatasetRef, DatasetId
 from ..utils.async_parquet_writer import AsyncParquetWriter
+from ..utils.async_parquet_reader import read_parquet_async
 
 
 class DatasetsParquetWriter(AsyncParquetWriter):
@@ -15,6 +16,17 @@ class DatasetsParquetWriter(AsyncParquetWriter):
         rows = [_convert_ref_to_row(ref) for ref in refs]
         batch = pyarrow.RecordBatch.from_pylist(rows, schema=self._schema)
         await self.write_batch(batch)
+
+
+async def read_dataset_ids(input_file: str | Path) -> AsyncIterator[list[DatasetId]]:
+    column_name = "dataset_id"
+    async for batch in read_parquet_async(
+        input_file, batch_size=50000, columns=[column_name]
+    ):
+        yield [
+            _convert_parquet_uuid_to_dataset_id(id.as_py())
+            for id in batch.column(column_name)
+        ]
 
 
 def _convert_ref_to_row(ref: DatasetRef) -> dict[str, object]:
@@ -51,3 +63,10 @@ def _get_data_id_column_schemas(dimensions: DimensionGroup) -> list[pyarrow.Fiel
         schema.append(field)
 
     return schema
+
+
+def _convert_parquet_uuid_to_dataset_id(dataset_id_binary: object) -> DatasetId:
+    assert isinstance(dataset_id_binary, bytes), (
+        f"Dataset ID expected to be serialized as binary bytes, got {type(dataset_id_binary)}"
+    )
+    return DatasetId(bytes=dataset_id_binary)
